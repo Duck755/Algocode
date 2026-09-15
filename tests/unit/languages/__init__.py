@@ -1,0 +1,1 @@
+"""Language adapter tests."""

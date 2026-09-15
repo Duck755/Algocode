@@ -1,0 +1,19 @@
+"""Workspace lifecycle port."""
+
+from typing import Protocol
+
+from algocode.workspace.types import ApplyResult, Workspace
+
+
+class WorkspaceManager(Protocol):
+    async def prepare_baseline(self, task_id: str, base_revision: str) -> Workspace: ...
+
+    async def create_candidate(self, task_id: str, base_revision: str) -> Workspace: ...
+
+    async def freeze(self, workspace: Workspace) -> str: ...
+
+    async def diff(self, workspace: Workspace) -> str: ...
+
+    async def apply(self, workspace: Workspace) -> ApplyResult: ...
+
+    async def rollback(self, workspace: Workspace) -> None: ...

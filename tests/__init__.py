@@ -1,0 +1,1 @@
+"""Algocode test suite."""

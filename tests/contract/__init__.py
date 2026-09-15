@@ -1,0 +1,1 @@
+"""Cross-adapter contract tests."""
