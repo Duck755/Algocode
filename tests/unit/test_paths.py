@@ -5,10 +5,16 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from algocode.storage.paths import default_data_dir
+from algocode.storage.paths import default_data_dir, project_data_dir
 
 
 class PathTests(unittest.TestCase):
+    def test_project_state_lives_under_algocode_cache(self) -> None:
+        self.assertEqual(
+            project_data_dir("C:/work/project"),
+            Path("C:/work/project/.algocode/cache"),
+        )
+
     def test_windows_path_uses_local_app_data(self) -> None:
         with (
             patch.object(sys, "platform", "win32"),

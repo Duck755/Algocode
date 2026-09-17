@@ -38,6 +38,7 @@ class GitWorkspaceTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(workspace.base_snapshot_hash, revision)
 
     async def test_candidate_apply_and_rollback(self) -> None:
+
         revision = git_output(self.repository_root, "rev-parse", "HEAD")
         workspace = await self.manager.create_candidate("task_1", revision)
         source = workspace.path / "src/main.cpp"
@@ -59,6 +60,24 @@ class GitWorkspaceTests(unittest.IsolatedAsyncioTestCase):
         await self.manager.rollback(workspace)
         self.assertIn("return 0", (self.repository_root / "src/main.cpp").read_text("utf-8"))
         self.assertFalse((self.repository_root / "candidate.txt").exists())
+
+    async def test_candidate_can_be_branched_from_another_workspace(self) -> None:
+        revision = git_output(self.repository_root, "rev-parse", "HEAD")
+        first = await self.manager.create_candidate("task_1", revision)
+        (first.path / "src/main.cpp").write_text("int main() { return 7; }\n", encoding="utf-8")
+        (first.path / "candidate.txt").write_text("candidate\n", encoding="utf-8")
+
+        second = await self.manager.create_candidate(
+            "task_1",
+            revision,
+            source_workspace=first.path,
+        )
+
+        self.assertIn("return 7", (second.path / "src/main.cpp").read_text("utf-8"))
+        self.assertEqual(
+            (second.path / "candidate.txt").read_text("utf-8"),
+            "candidate\n",
+        )
 
 
 if __name__ == "__main__":

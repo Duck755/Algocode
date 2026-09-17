@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import statistics
 import tempfile
 import unittest
 from pathlib import Path
@@ -93,6 +94,25 @@ class BenchmarkServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(comparison.valid)
         self.assertEqual(candidate_result.comparison_key, baseline_result.comparison_key)
         self.assertGreater(comparison.baseline_median, 0)
+        artifact = await self.context.benchmark_service.read_result(candidate_run)
+        baseline_values = [
+            sample["value"]
+            for sample in artifact["samples"]
+            if sample["target_kind"] == "baseline" and sample["phase"] == "measured"
+        ]
+        candidate_values = [
+            sample["value"]
+            for sample in artifact["samples"]
+            if sample["target_kind"] == "candidate" and sample["phase"] == "measured"
+        ]
+        self.assertEqual(artifact["baseline_summary"]["count"], len(baseline_values))
+        self.assertEqual(artifact["candidate_summary"]["count"], len(candidate_values))
+        self.assertAlmostEqual(
+            artifact["baseline_summary"]["median"],
+            statistics.median(baseline_values),
+        )
+        self.assertAlmostEqual(comparison.baseline_median, statistics.median(baseline_values))
+        self.assertAlmostEqual(comparison.candidate_median, statistics.median(candidate_values))
         events = await self.context.event_store.read(str(self.task.id))
         self.assertIn(EventType.BENCHMARK_SAMPLES_CAPTURED, [event.type for event in events])
         self.assertIn(EventType.COMPARISON_PRODUCED, [event.type for event in events])

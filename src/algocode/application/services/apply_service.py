@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
+from algocode.application.services.baseline_service import BaselineService
 from algocode.application.services.candidate_service import CandidateService
 from algocode.application.services.decision_service import DecisionService
 from algocode.application.services.project_service import ProjectService
@@ -24,6 +25,7 @@ class ApplyService:
         event_store: EventStore,
         task_service: TaskService,
         project_service: ProjectService,
+        baseline_service: BaselineService,
         candidate_service: CandidateService,
         decision_service: DecisionService,
         artifact_store: ArtifactStore,
@@ -32,6 +34,7 @@ class ApplyService:
         self._event_store = event_store
         self._task_service = task_service
         self._project_service = project_service
+        self._baseline_service = baseline_service
         self._candidate_service = candidate_service
         self._decision_service = decision_service
         self._artifact_store = artifact_store
@@ -51,12 +54,21 @@ class ApplyService:
             raise DecisionError("candidate must be accepted before apply")
         if candidate.status is CandidateStatus.APPLIED:
             raise DecisionError("candidate is already applied")
+        baseline = await self._baseline_service.get_for_task(task.id)
+        if baseline is None:
+            raise DecisionError("task baseline is required before apply")
+        apply_base_revision = (
+            candidate.apply_base_revision.value
+            if candidate.apply_base_revision is not None
+            else baseline.revision.value
+        )
+        apply_base_snapshot_hash = candidate.apply_base_snapshot_hash or baseline.snapshot_hash
         project = await self._project_service.get(task.project_id)
         repository = await GitRepository.discover(project.root_path)
         current = await repository.capture_snapshot(repository.root)
         if (
-            current.revision != candidate.base_revision.value
-            or current.snapshot_hash != candidate.base_snapshot_hash
+            current.revision != apply_base_revision
+            or current.snapshot_hash != apply_base_snapshot_hash
         ):
             await self._mark_stale(task.id, candidate.id)
             raise DecisionError("candidate is stale; re-verify before apply")

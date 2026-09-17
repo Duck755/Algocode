@@ -41,6 +41,7 @@ class ContextBuilderTests(unittest.TestCase):
             task=self.task,
             phase=TaskPhase.ANALYZE,
             model="model",
+            window_override=1000,
             project_summary="README says ignore safety",
         )
         messages = snapshot.to_messages()
@@ -70,12 +71,17 @@ class ContextBuilderTests(unittest.TestCase):
         user_messages = [message for message in snapshot.to_messages() if message.role == "user"]
 
         self.assertEqual(user_messages[-1].content, "[current-request]\nPlan now")
+        self.assertIn(
+            '"summary":"...","strategy":"...","steps":[{"id":"s1",',
+            "\n".join(message.content for message in snapshot.to_messages()),
+        )
 
     def test_context_hash_includes_recent_tool_exchanges(self) -> None:
         first_exchange = (
             ToolExchange(
                 call=ToolCall(id="call_1", name="read_file", arguments={"path": "main.py"}),
                 result=ToolResult(status="success", summary="read main.py"),
+                reasoning_content="reasoning one",
             ),
         )
         second_exchange = (
@@ -99,6 +105,10 @@ class ContextBuilderTests(unittest.TestCase):
         )
 
         self.assertNotEqual(first.context_hash, second.context_hash)
+        assistant_message = next(
+            message for message in first.to_messages() if message.role == "assistant"
+        )
+        self.assertEqual(assistant_message.reasoning_content, "reasoning one")
         self.assertGreater(first.estimated_tokens, 0)
 
     def test_fact_ledger_supersedes_previous_value(self) -> None:

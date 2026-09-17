@@ -4,10 +4,11 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from algocode.config.model import SandboxConfig
-from algocode.sandbox.runner import SandboxProcessRunner
+from algocode.sandbox.runner import SandboxProcessRunner, _wsl_ready
 
 
 class SandboxRunnerTests(unittest.IsolatedAsyncioTestCase):
@@ -45,6 +46,23 @@ class SandboxRunnerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(result.truncated)
         self.assertLessEqual(len(result.stdout), 5)
+
+    def test_wsl_backend_probe_uses_flat_argument_tuple(self) -> None:
+        with (
+            patch(
+                "algocode.sandbox.runner.shutil.which",
+                side_effect=lambda name: "wsl.exe" if name == "wsl.exe" else None,
+            ),
+            patch("algocode.sandbox.runner.subprocess.run") as run,
+        ):
+            run.return_value = SimpleNamespace(returncode=0)
+
+            ready = _wsl_ready("Ubuntu", False)
+
+        self.assertTrue(ready)
+        command = run.call_args.args[0]
+        self.assertEqual(command[0], "wsl.exe")
+        self.assertTrue(all(isinstance(argument, str) for argument in command))
 
 
 if __name__ == "__main__":

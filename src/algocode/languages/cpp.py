@@ -19,6 +19,7 @@ from algocode.languages.runner import run_commands
 from algocode.languages.types import (
     BuildProfile,
     BuildResult,
+    ContractTestResult,
     Diagnostic,
     PrepareResult,
     ProjectInfo,
@@ -57,13 +58,13 @@ class CppLanguageAdapter:
         return ProjectInfo(root=root, languages=(Language.CPP,), build_system=build_system)
 
     async def prepare(self, workspace: Path, spec: object | None = None) -> PrepareResult:
-        (workspace / "build").mkdir(parents=True, exist_ok=True)
+        _build_dir(workspace).mkdir(parents=True, exist_ok=True)
         return PrepareResult(workspace=workspace.resolve())
 
     async def build(self, workspace: Path, spec: object) -> BuildResult:
         if not isinstance(spec, BuildProfile):
             raise TypeError("C++ build requires a BuildProfile")
-        (workspace / "build").mkdir(parents=True, exist_ok=True)
+        _build_dir(workspace).mkdir(parents=True, exist_ok=True)
         root = resolve_source_root(workspace, spec.source_root)
         commands = spec.commands or _default_commands(workspace, root)
         if not commands:
@@ -82,7 +83,7 @@ class CppLanguageAdapter:
         )
         stderr = b"".join(result.stderr for result in results)
         executable_name = "algocode_baseline.exe" if os.name == "nt" else "algocode_baseline"
-        executable = workspace / "build" / executable_name
+        executable = _build_dir(workspace) / executable_name
         built_executable = executable if executable.exists() else None
         return BuildResult(
             language=self.language,
@@ -117,9 +118,133 @@ class CppLanguageAdapter:
         )
 
 
+async def run_cpp_contract_test(
+    workspace: Path,
+    contract_test_path: Path,
+    sandbox_runner=None,
+) -> ContractTestResult:
+    """Compile one C++ contract harness against candidate and reference code."""
+    root = workspace.resolve()
+    reference_root = root / ".algocode" / "oracle" / "reference"
+    if not reference_root.is_dir():
+        return ContractTestResult(
+            passed=False,
+            message="C++ reference sources are not available",
+        )
+    compiler = shutil.which("g++") or shutil.which("clang++")
+    if compiler is None:
+        return ContractTestResult(
+            passed=False,
+            message="no C++ compiler was found on PATH",
+        )
+    if sandbox_runner is None:
+        from algocode.sandbox.runner import SandboxProcessRunner
+
+        sandbox_runner = SandboxProcessRunner()
+    output_dir = root / ".algocode" / "cache" / "contract-tests"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    suffix = ".exe" if os.name == "nt" else ""
+    candidate_executable = output_dir / f"candidate_contract{suffix}"
+    reference_executable = output_dir / f"reference_contract{suffix}"
+    outputs: list[bytes] = []
+    exit_codes: list[int] = []
+    truncated = False
+    for include_root, executable in (
+        (root, candidate_executable),
+        (reference_root, reference_executable),
+    ):
+        compile_result = await sandbox_runner.run(
+            (
+                compiler,
+                "-std=c++17",
+                "-O2",
+                "-I",
+                str(include_root),
+                str(contract_test_path),
+                "-o",
+                str(executable),
+            ),
+            cwd=root,
+            timeout_seconds=120,
+            input_bytes=b"",
+        )
+        truncated = truncated or compile_result.truncated
+        if compile_result.start_failed or compile_result.timed_out or compile_result.exit_code != 0:
+            return ContractTestResult(
+                passed=False,
+                stdout=compile_result.stdout,
+                stderr=compile_result.stderr,
+                message=(
+                    "C++ contract test compilation failed for "
+                    f"{'candidate' if include_root == root else 'reference'}"
+                ),
+                truncated=compile_result.truncated,
+            )
+        run_result = await sandbox_runner.run(
+            (str(executable),),
+            cwd=root,
+            timeout_seconds=120,
+            input_bytes=b"",
+        )
+        truncated = truncated or run_result.truncated
+        outputs.append(run_result.stdout)
+        exit_codes.append(run_result.exit_code)
+        if run_result.start_failed or run_result.timed_out:
+            return ContractTestResult(
+                passed=False,
+                stdout=run_result.stdout,
+                stderr=run_result.stderr,
+                message="C++ contract test process failed to run",
+                truncated=truncated,
+            )
+    candidate_stdout, reference_stdout = outputs
+    candidate_exit, reference_exit = exit_codes
+    if candidate_exit != reference_exit:
+        return ContractTestResult(
+            passed=False,
+            stdout=candidate_stdout,
+            message=(
+                f"C++ contract exit-code mismatch: candidate={candidate_exit}, "
+                f"reference={reference_exit}"
+            ),
+            candidate_exit_code=candidate_exit,
+            reference_exit_code=reference_exit,
+            truncated=truncated,
+        )
+    if candidate_stdout != reference_stdout:
+        return ContractTestResult(
+            passed=False,
+            stdout=candidate_stdout,
+            message="C++ contract stdout mismatch",
+            candidate_exit_code=candidate_exit,
+            reference_exit_code=reference_exit,
+            truncated=truncated,
+        )
+    if candidate_exit != 0:
+        return ContractTestResult(
+            passed=False,
+            stdout=candidate_stdout,
+            message=f"C++ contract test failed with exit code {candidate_exit}",
+            candidate_exit_code=candidate_exit,
+            reference_exit_code=reference_exit,
+            truncated=truncated,
+        )
+    return ContractTestResult(
+        passed=True,
+        stdout=candidate_stdout,
+        candidate_exit_code=candidate_exit,
+        reference_exit_code=reference_exit,
+        truncated=truncated,
+    )
+
+
+def _build_dir(workspace: Path) -> Path:
+    return workspace / ".algocode" / "cache" / "build"
+
+
 def _default_commands(workspace: Path, source_root: Path) -> tuple[tuple[str, ...], ...]:
     if (workspace / "CMakeLists.txt").exists():
-        build_dir = workspace / "build"
+        build_dir = _build_dir(workspace)
         return (
             ("cmake", "-S", str(workspace), "-B", str(build_dir)),
             ("cmake", "--build", str(build_dir)),
@@ -141,8 +266,8 @@ def _default_commands(workspace: Path, source_root: Path) -> tuple[tuple[str, ..
         sources[0],
     )
     executable = "algocode_baseline.exe" if os.name == "nt" else "algocode_baseline"
-    output = workspace / "build" / executable
-    return ((compiler, "-std=c++17", "-O2", str(source), "-o", str(output)),)
+    output = _build_dir(workspace) / executable
+    return ((compiler, "-std=c++17", "-O2", "-pthread", str(source), "-o", str(output)),)
 
 
 def _parse_diagnostics(stderr: bytes) -> tuple[Diagnostic, ...]:

@@ -49,6 +49,21 @@ class TaskProjection:
                     event.aggregate_id,
                 ),
             )
+        elif event.type is EventType.TASK_RETRY_REQUESTED:
+            connection.execute(
+                """
+                UPDATE tasks
+                SET status = ?, current_phase = ?, active_candidate_id = NULL,
+                    completed_at = NULL, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    TaskStatus.RUNNING.value,
+                    TaskPhase.PLAN.value,
+                    event.timestamp.isoformat(),
+                    event.aggregate_id,
+                ),
+            )
         elif event.type is EventType.BASELINE_CAPTURED:
             connection.execute(
                 """

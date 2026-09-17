@@ -82,6 +82,18 @@ class ReportService:
                     "status": candidate.status.value,
                     "base_revision": candidate.base_revision.value,
                     "base_snapshot_hash": candidate.base_snapshot_hash,
+                    "parent_candidate_id": (
+                        str(candidate.parent_candidate_id)
+                        if candidate.parent_candidate_id is not None
+                        else None
+                    ),
+                    "fork_snapshot_hash": candidate.fork_snapshot_hash,
+                    "apply_base_revision": (
+                        candidate.apply_base_revision.value
+                        if candidate.apply_base_revision is not None
+                        else None
+                    ),
+                    "apply_base_snapshot_hash": candidate.apply_base_snapshot_hash,
                     "workspace_ref": candidate.workspace_ref,
                     "patch_hash": candidate.patch_hash,
                     "created_at": candidate.created_at.isoformat(),
@@ -91,6 +103,8 @@ class ReportService:
                 }
             )
         for run in benchmark_runs:
+            if run.result_ref is None:
+                continue
             payload = await self._benchmark_service.read_result(run)
             if run.target_kind == "candidate":
                 comparisons.append(payload.get("comparison") or {})

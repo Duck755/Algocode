@@ -14,7 +14,7 @@ from algocode.eval.harness import EvalHarness
 from algocode.eval.provider import PhaseScriptedProvider
 from algocode.eval.suites import suite
 from algocode.eval.types import EvalComparison, EvalRun, EvalTaskResult
-from algocode.providers.factory import build_provider
+from algocode.providers.factory import build_provider, resolve_model_selection
 from algocode.providers.fake import DeterministicFakeProvider
 from algocode.providers.types import ModelRef
 from algocode.tools import build_default_registry
@@ -33,8 +33,8 @@ class EvalService:
         suite_name: str,
         *,
         provider: str = "auto",
-        provider_key: str = "default",
-        model_key: str = "default",
+        provider_key: str | None = None,
+        model_key: str | None = None,
         repeat_count: int = 1,
         seed: int = 0,
     ) -> EvalRun:
@@ -114,7 +114,13 @@ class EvalService:
         markdown_path.write_text(render_eval_markdown(run), encoding="utf-8")
         return json_path, markdown_path
 
-    def _provider_factory(self, choice: str, *, provider_key: str, model_key: str):
+    def _provider_factory(
+        self,
+        choice: str,
+        *,
+        provider_key: str | None,
+        model_key: str | None,
+    ):
         if choice == "fake":
             return (
                 lambda task, candidate_id: DeterministicFakeProvider(),
@@ -128,14 +134,17 @@ class EvalService:
                 ModelRef(provider_id="scripted", model_id="deterministic"),
             )
         if choice == "real":
+            selected_provider, selected_model = resolve_model_selection(
+                self.config, provider_key, model_key
+            )
             provider, model = build_provider(
                 self.config,
-                provider_key=provider_key,
-                model_key=model_key,
+                provider_key=selected_provider,
+                model_key=selected_model,
             )
             return (
                 lambda task, candidate_id: provider,
-                f"{provider_key}/{model_key}",
+                f"{selected_provider}/{selected_model}",
                 model,
             )
         if choice != "auto":

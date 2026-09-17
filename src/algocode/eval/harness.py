@@ -94,6 +94,7 @@ class EvalHarness:
                 config_hash=compute_config_hash(context.config),
                 policy_hash=context.policy_engine.hash(),
                 model=self.model,
+                model_log_root=context.data_dir / "model-logs",
                 protected_files=task.protected_files
                 or (
                     "tests/",
@@ -129,6 +130,7 @@ class EvalHarness:
                     config_hash=compute_config_hash(context.config),
                     policy_hash=context.policy_engine.hash(),
                     model=self.model,
+                    model_log_root=context.data_dir / "model-logs",
                     protected_files=task.protected_files,
                 )
                 final_result = await recovery_runtime.run(

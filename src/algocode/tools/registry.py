@@ -12,6 +12,7 @@ from algocode.policy.engine import PolicyEngine
 from algocode.policy.types import PolicyEffect, PolicyRequest
 from algocode.sandbox.local import LocalProcessSandbox, SandboxRequest
 from algocode.security import SecretRedactor
+from algocode.structured_output import StructuredOutputError, validate_model
 from algocode.tools.types import ToolContext, ToolDefinition, ToolResult
 
 ToolHandler = Callable[[ToolContext, dict[str, object]], Awaitable[ToolResult]]
@@ -50,6 +51,7 @@ class ToolRegistry:
                 "name": definition.name,
                 "description": definition.description,
                 "input_schema": definition.input_schema,
+                "strict": definition.strict,
             }
             for definition in self.definitions()
         )
@@ -79,6 +81,19 @@ class ToolRegistry:
                 status="error",
                 summary=f"missing required arguments: {', '.join(missing)}",
             )
+        if definition.argument_model is not None:
+            try:
+                validate_model(
+                    arguments,
+                    definition.argument_model,
+                    label=f"tool {name} arguments",
+                )
+            except StructuredOutputError as exc:
+                return ToolResult(
+                    status="error",
+                    summary=str(exc),
+                    structured={"validation_errors": str(exc), "tool": name},
+                )
 
         policy_request = _policy_request(definition, arguments)
         policy_decision = (

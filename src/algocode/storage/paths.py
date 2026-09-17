@@ -6,7 +6,15 @@ import os
 import sys
 from pathlib import Path
 
+from algocode.project_layout import ProjectLayout
+
 APP_NAME = "algocode"
+
+
+def project_data_dir(project_root: str | Path) -> Path:
+    """Return the project-local state directory used by all project commands."""
+
+    return ProjectLayout.from_root(project_root).cache_dir
 
 
 def default_data_dir() -> Path:

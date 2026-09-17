@@ -14,14 +14,13 @@ from pydantic import ValidationError
 
 from algocode.config.model import AlgocodeConfig
 from algocode.domain.errors import ConfigError
+from algocode.project_layout import ProjectLayout
 from algocode.storage.paths import default_data_dir
 
 ENV_PREFIX = "ALGOCODE_"
 APPEND_LIST_KEYS = {"rules", "protected_files"}
 SECRET_ENV_SUFFIXES = ("_API_KEY", "_TOKEN", "_SECRET")
 GLOBAL_CONFIG_NAME = "config.yaml"
-PROJECT_CONFIG_NAME = ".algocode.yaml"
-LOCAL_CONFIG_NAME = ".algocode.local.yaml"
 
 
 def _read_document(path: Path) -> dict[str, Any]:
@@ -132,22 +131,33 @@ def load_config(
     """
 
     root = Path.cwd() if project_root is None else Path(project_root).expanduser()
+    layout = ProjectLayout.from_root(root)
     runtime_data_dir = _resolve_data_dir(data_dir)
     document: dict[str, Any] = {}
     global_document = _tag_policy_rules(
         _read_document(runtime_data_dir / GLOBAL_CONFIG_NAME),
         "user",
     )
+    legacy_project_document = _tag_policy_rules(
+        _read_document(layout.legacy_config_path),
+        "project",
+    )
     project_document = _tag_policy_rules(
-        _read_document(root / PROJECT_CONFIG_NAME),
+        _read_document(layout.config_path),
+        "project",
+    )
+    legacy_local_document = _tag_policy_rules(
+        _read_document(layout.legacy_local_config_path),
         "project",
     )
     local_document = _tag_policy_rules(
-        _read_document(root / LOCAL_CONFIG_NAME),
+        _read_document(layout.local_config_path),
         "project",
     )
     document = _deep_merge(document, global_document)
+    document = _deep_merge(document, legacy_project_document)
     document = _deep_merge(document, project_document)
+    document = _deep_merge(document, legacy_local_document)
     document = _deep_merge(document, local_document)
     document = _deep_merge(document, _env_overrides(environ))
     if cli_overrides is not None:

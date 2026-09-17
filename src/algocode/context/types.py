@@ -63,6 +63,7 @@ class ContextFact:
 class ToolExchange:
     call: ToolCall
     result: ToolResult
+    reasoning_content: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,7 +95,13 @@ class ContextSnapshot:
             role = "user" if fragment.kind == "current-request" else "system"
             messages.append(Message(role=role, content=f"[{fragment.kind}]\n{content}"))
         for exchange in self.tool_exchanges:
-            messages.append(Message(role="assistant", tool_calls=(exchange.call,)))
+            messages.append(
+                Message(
+                    role="assistant",
+                    reasoning_content=exchange.reasoning_content,
+                    tool_calls=(exchange.call,),
+                )
+            )
             messages.append(
                 Message(
                     role="tool",

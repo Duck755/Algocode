@@ -3,13 +3,15 @@ from __future__ import annotations
 import unittest
 from dataclasses import replace
 
-from algocode.providers.errors import AuthenticationError
+from algocode.providers.errors import AuthenticationError, ToolProtocolError
 from algocode.providers.openai_compatible import OpenAICompatibleProvider
 from algocode.providers.types import (
     FinishEvent,
+    Message,
     ModelRef,
     ModelRequest,
     TextDelta,
+    ToolCall,
     ToolCallDelta,
     UsageEvent,
 )
@@ -123,6 +125,7 @@ class OpenAICompatibleProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.usage.estimated_cost, 0.00002)
 
         self.assertEqual(response.text, "Hello")
+        self.assertEqual(response.reasoning, "reason")
         self.assertEqual(response.tool_calls[0].id, "call-1")
         self.assertEqual(response.tool_calls[0].name, "read_file")
         self.assertEqual(response.tool_calls[0].arguments, {"path": "main.py"})
@@ -138,6 +141,32 @@ class OpenAICompatibleProviderTests(unittest.IsolatedAsyncioTestCase):
             ["path"],
         )
         self.assertTrue(self.server.headers[0]["Authorization"].startswith("Bearer "))
+
+    def test_request_payload_replays_reasoning_content_for_tool_calls(self) -> None:
+        request = replace(
+            _request(),
+            messages=(
+                Message(
+                    role="assistant",
+                    reasoning_content="hidden reasoning",
+                    tool_calls=(
+                        ToolCall(
+                            id="call-1",
+                            name="read_file",
+                            arguments={"path": "main.py"},
+                        ),
+                    ),
+                ),
+                Message(role="tool", tool_call_id="call-1", content="{}"),
+            ),
+        )
+
+        payload = self.provider._request_payload(request)
+
+        self.assertEqual(payload["messages"][0]["role"], "system")
+        self.assertEqual(payload["messages"][1]["role"], "assistant")
+        self.assertEqual(payload["messages"][1]["reasoning_content"], "hidden reasoning")
+        self.assertEqual(payload["messages"][2]["tool_call_id"], "call-1")
 
     async def test_stream_emits_normalized_events(self) -> None:
         self._enqueue_text_tool_usage()
@@ -170,6 +199,40 @@ class OpenAICompatibleProviderTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.text, "ok")
         self.assertEqual(len(self.server.requests), 2)
+
+    async def test_invalid_tool_arguments_retry(self) -> None:
+        self.server.enqueue_sse(
+            [
+                {
+                    "id": "invalid-tool",
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "call-1",
+                                        "function": {
+                                            "name": "read_file",
+                                            "arguments": '{"path": "main.py"',
+                                        },
+                                    }
+                                ]
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ],
+                }
+            ]
+        )
+        self.server.enqueue_text("ok")
+
+        with self.assertRaises(ToolProtocolError) as caught:
+            await self.provider.complete(_request())
+
+        self.assertEqual(caught.exception.tool_name, "read_file")
+        self.assertEqual(caught.exception.call_id, "call-1")
+        self.assertIn("Expecting", caught.exception.parse_error)
 
     async def test_rate_limit_retries(self) -> None:
         self.server.enqueue_json(429, {"error": {"message": "rate limited"}})

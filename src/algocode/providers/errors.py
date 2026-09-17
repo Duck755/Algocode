@@ -41,3 +41,18 @@ class InvalidProviderOutputError(ProviderError):
 
 class ToolProtocolError(ProviderError):
     """Provider emitted an invalid tool call."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        tool_name: str = "",
+        call_id: str = "",
+        raw_arguments: str = "",
+        parse_error: str = "",
+    ) -> None:
+        super().__init__(message)
+        self.tool_name = tool_name
+        self.call_id = call_id
+        self.raw_arguments = raw_arguments
+        self.parse_error = parse_error

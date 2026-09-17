@@ -87,6 +87,7 @@ class CorrectnessService:
         build_profile: BuildProfile | None = None,
         language: Language | str = Language.AUTO,
         changed_paths: tuple[str, ...] = (),
+        record_candidate_status: bool = True,
     ) -> tuple[CorrectnessRun, CorrectnessResult]:
         if target_kind not in {"baseline", "candidate"}:
             raise ValueError("target_kind must be baseline or candidate")
@@ -130,6 +131,7 @@ class CorrectnessService:
                         "workspace_ref": str(workspace),
                         "spec_hash": spec_hash,
                         "spec_ref": _artifact_payload(spec_ref),
+                        "record_candidate_status": record_candidate_status,
                     },
                     artifact_refs=(spec_ref,),
                 ),
@@ -228,6 +230,7 @@ class CorrectnessService:
                         "failure_ref": (
                             _artifact_payload(failure_ref) if failure_ref is not None else None
                         ),
+                        "record_candidate_status": record_candidate_status,
                     },
                     artifact_refs=tuple(artifacts),
                 ),

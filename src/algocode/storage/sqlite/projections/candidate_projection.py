@@ -27,9 +27,13 @@ class CandidateProjection:
                     status,
                     patch_hash,
                     created_at,
-                    frozen_at
+                    frozen_at,
+                    parent_candidate_id,
+                    fork_snapshot_hash,
+                    apply_base_revision,
+                    apply_base_snapshot_hash
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload["candidate_id"],
@@ -41,6 +45,10 @@ class CandidateProjection:
                     payload.get("patch_hash"),
                     payload["created_at"],
                     payload.get("frozen_at"),
+                    payload.get("parent_candidate_id"),
+                    payload.get("fork_snapshot_hash"),
+                    payload.get("apply_base_revision"),
+                    payload.get("apply_base_snapshot_hash"),
                 ),
             )
             return
@@ -62,12 +70,14 @@ class CandidateProjection:
         if (
             event.type is EventType.CORRECTNESS_PASSED
             and event.payload.get("target_kind") == "candidate"
+            and event.payload.get("record_candidate_status", True)
         ):
             self._set_status(connection, str(event.payload["target_id"]), CandidateStatus.VERIFIED)
             return
         if (
             event.type is EventType.CORRECTNESS_FAILED
             and event.payload.get("target_kind") == "candidate"
+            and event.payload.get("record_candidate_status", True)
         ):
             self._set_status(connection, str(event.payload["target_id"]), CandidateStatus.REJECTED)
             return
@@ -146,6 +156,14 @@ class CandidateProjection:
             patch_hash=row["patch_hash"],
             created_at=_parse_datetime(row["created_at"]),
             frozen_at=_parse_optional_datetime(row["frozen_at"]),
+            parent_candidate_id=(
+                CandidateId(row["parent_candidate_id"]) if row["parent_candidate_id"] else None
+            ),
+            fork_snapshot_hash=row["fork_snapshot_hash"],
+            apply_base_revision=(
+                GitRevision(row["apply_base_revision"]) if row["apply_base_revision"] else None
+            ),
+            apply_base_snapshot_hash=row["apply_base_snapshot_hash"],
         )
 
 

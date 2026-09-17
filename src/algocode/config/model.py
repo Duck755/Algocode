@@ -17,6 +17,7 @@ CONFIG_DICT = ConfigDict(
 )
 
 _ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_CREDENTIAL_NAME = re.compile(r"[A-Za-z0-9_.-]+")
 
 PolicyEffect = Literal["allow", "ask", "deny"]
 PolicyLayer = Literal["hard", "managed", "user", "project", "default"]
@@ -40,11 +41,19 @@ class ProviderConfig(BaseModel):
     @field_validator("credential_ref")
     @classmethod
     def validate_credential_ref(cls, value: str | None) -> str | None:
-        if value is not None and not value.startswith("env://"):
-            raise ValueError("credential_ref must use env://<NAME>")
-        if value is not None and _ENV_NAME.fullmatch(value.removeprefix("env://")) is None:
-            raise ValueError("credential_ref must reference a valid environment variable name")
-        return value
+        if value is None:
+            return value
+        if value.startswith("env://"):
+            name = value.removeprefix("env://")
+            if _ENV_NAME.fullmatch(name) is None:
+                raise ValueError("env credential_ref must reference a valid environment variable")
+            return value
+        if value.startswith("local://"):
+            name = value.removeprefix("local://")
+            if _CREDENTIAL_NAME.fullmatch(name) is None:
+                raise ValueError("local credential_ref must reference a valid credential name")
+            return value
+        raise ValueError("credential_ref must use env://<NAME> or local://<NAME>")
 
     @field_validator("api_key_env")
     @classmethod
@@ -62,10 +71,17 @@ class ModelConfig(BaseModel):
     context_window: int = Field(default=128_000, gt=0)
 
 
+class DefaultsConfig(BaseModel):
+    model_config = CONFIG_DICT
+
+    provider: str = "default"
+    model: str = "default"
+
+
 class RuntimeConfig(BaseModel):
     model_config = CONFIG_DICT
 
-    max_steps_per_phase: int = Field(default=20, gt=0)
+    max_steps_per_phase: int = Field(default=30, gt=0)
     max_tool_calls_per_phase: int = Field(default=50, gt=0)
     max_candidates: int = Field(default=3, gt=0)
     network: bool = False
@@ -78,6 +94,10 @@ class CorrectnessConfig(BaseModel):
     require_determinism: bool = True
     protected_files: tuple[str, ...] = (
         "tests/",
+        ".algocode/oracle/",
+        ".algocode/benchmarks/",
+        ".algocode/config.yaml",
+        ".algocode/contract.json",
         "oracle/",
         "generator/",
         "hidden-tests/",
@@ -163,6 +183,7 @@ class AlgocodeConfig(BaseModel):
     project: ProjectConfig = Field(default_factory=ProjectConfig)
     providers: dict[str, ProviderConfig] = Field(default_factory=dict)
     models: dict[str, ModelConfig] = Field(default_factory=dict)
+    defaults: DefaultsConfig = Field(default_factory=DefaultsConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     correctness: CorrectnessConfig = Field(default_factory=CorrectnessConfig)
     benchmark: BenchmarkDefaults = Field(default_factory=BenchmarkDefaults)

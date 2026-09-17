@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -73,6 +75,48 @@ class CliReportApplyTests(unittest.IsolatedAsyncioTestCase):
         self.candidate = candidate
         self.runner = CliRunner()
 
+    def test_current_project_short_commands(self) -> None:
+        state_dir = self.project_root / ".algocode"
+        state_dir.mkdir(exist_ok=True)
+        (self.project_root / ".git" / "info" / "exclude").write_text(
+            ".algocode/config.local.yaml\n.algocode/current-task.json\n.algocode/task.txt\n.algocode/cache/\n",
+            encoding="utf-8",
+        )
+        (state_dir / "current-task.json").write_text(
+            json.dumps(
+                {
+                    "taskId": str(self.task.id),
+                    "candidateId": str(self.candidate.id),
+                    "dataDir": str(self.data_dir),
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        previous = Path.cwd()
+        try:
+            os.chdir(self.project_root)
+            status = self.runner.invoke(app, ["status", "--json"])
+            review = self.runner.invoke(app, ["review", "--json"])
+            diff = self.runner.invoke(app, ["diff", "--json"])
+            applied = self.runner.invoke(app, ["apply", "--json"])
+            rolled_back = self.runner.invoke(app, ["rollback", "--json"])
+        finally:
+            os.chdir(previous)
+
+        self.assertEqual(status.exit_code, 0, status.output)
+        self.assertEqual(review.exit_code, 0, review.output)
+        self.assertEqual(diff.exit_code, 0, diff.output)
+        self.assertEqual(applied.exit_code, 0, applied.output)
+        self.assertEqual(rolled_back.exit_code, 0, rolled_back.output)
+        self.assertEqual(json.loads(status.stdout)["data"]["taskId"], str(self.task.id))
+        self.assertEqual(
+            json.loads(review.stdout)["data"]["candidate"]["id"], str(self.candidate.id)
+        )
+        self.assertTrue(json.loads(diff.stdout)["data"]["patch"])
+        self.assertTrue(json.loads(applied.stdout)["data"]["applied"])
+        self.assertTrue(json.loads(rolled_back.stdout)["data"]["rolled_back"])
+
     async def asyncTearDown(self) -> None:
         self.temporary_directory.cleanup()
 
@@ -127,6 +171,59 @@ class CliReportApplyTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(rolled_back.exit_code, 0, rolled_back.output)
         self.assertTrue(json.loads(rolled_back.stdout)["data"]["rolled_back"])
+
+    def test_retry_child_candidate_applies_to_task_baseline(self) -> None:
+        parent_candidate = self.candidate
+
+        async def scenario() -> None:
+            baseline = await self.context.baseline_service.get_for_task(self.task.id)
+            self.assertIsNotNone(baseline)
+            child = await self.context.candidate_service.create(
+                self.task.id,
+                source_workspace=parent_candidate.workspace_ref,
+                parent_candidate_id=str(parent_candidate.id),
+            )
+            self.assertEqual(child.parent_candidate_id, parent_candidate.id)
+            self.assertEqual(child.fork_snapshot_hash, child.base_snapshot_hash)
+            self.assertEqual(child.apply_base_snapshot_hash, baseline.snapshot_hash)
+            self.assertNotEqual(child.base_snapshot_hash, baseline.snapshot_hash)
+            (Path(child.workspace_ref) / "main.py").write_text(
+                "print('child')\n",
+                encoding="utf-8",
+            )
+            correctness_run, correctness = await self.context.correctness_service.run_target(
+                self.task.id,
+                CorrectnessSpec(
+                    mode="cases",
+                    comparison="line-trim",
+                    cases=(CorrectnessCase(id="child", expected_output="child"),),
+                ),
+                target_kind="candidate",
+                target_id=str(child.id),
+                workspace_ref=child.workspace_ref,
+            )
+            self.assertTrue(correctness.passed)
+            await self.context.benchmark_service.run_candidate(
+                self.task.id,
+                str(child.id),
+                child.workspace_ref,
+                correctness_run.id,
+                BenchmarkSpec(warmup=0, repeats=1),
+            )
+            await self.context.decision_service.accept(self.task.id, child.id)
+            result = await self.context.apply_service.apply(self.task.id, child.id)
+            self.assertTrue(result["applied"])
+            self.assertIn(
+                "child",
+                (self.project_root / "main.py").read_text(encoding="utf-8"),
+            )
+            await self.context.apply_service.rollback(self.task.id, child.id)
+            self.assertIn(
+                "hello",
+                (self.project_root / "main.py").read_text(encoding="utf-8"),
+            )
+
+        asyncio.run(scenario())
 
 
 if __name__ == "__main__":

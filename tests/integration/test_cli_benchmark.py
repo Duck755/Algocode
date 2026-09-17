@@ -28,7 +28,14 @@ class CliBenchmarkTests(unittest.TestCase):
     def test_baseline_benchmark_and_show(self) -> None:
         init = self.runner.invoke(
             app,
-            ["init", "--path", str(self.project_root), "--data-dir", str(self.data_dir)],
+            [
+                "init",
+                "--path",
+                str(self.project_root),
+                "--data-dir",
+                str(self.data_dir),
+                "--no-bootstrap",
+            ],
         )
         self.assertEqual(init.exit_code, 0, init.output)
         task_result = self.runner.invoke(

@@ -31,7 +31,7 @@ class ProjectServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first.language, Language.PYTHON)
         self.assertEqual(first.created_at, second.created_at)
         self.assertEqual(first.git_revision, second.git_revision)
-        self.assertTrue((self.project_root / ".algocode.yaml").exists())
+        self.assertTrue((self.project_root / ".algocode" / "config.yaml").exists())
         restored = await self.context.project_service.get(first.id)
         self.assertEqual(restored.id, first.id)
         self.assertEqual(restored.language, first.language)

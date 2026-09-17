@@ -40,12 +40,14 @@ class LanguageAdapterTests(unittest.IsolatedAsyncioTestCase):
 
             info = await adapter.detect(root)
             result = await adapter.build(root, BuildProfile(timeout_seconds=30))
-            build_exists = (root / "build").exists()
+            build_exists = (root / ".algocode" / "cache" / "build").exists()
+            root_build_exists = (root / "build").exists()
 
         self.assertIsNotNone(info)
         self.assertEqual(info.languages, (Language.CPP,))
         self.assertTrue(result.succeeded, result.stderr.decode(errors="replace"))
         self.assertTrue(build_exists)
+        self.assertFalse(root_build_exists)
 
 
 if __name__ == "__main__":

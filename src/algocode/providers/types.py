@@ -17,6 +17,7 @@ class ToolCall:
 class Message:
     role: Literal["system", "user", "assistant", "tool"]
     content: str = ""
+    reasoning_content: str = ""
     tool_call_id: str | None = None
     tool_calls: tuple[ToolCall, ...] = ()
 
@@ -61,6 +62,7 @@ class ModelResponse:
     tool_calls: tuple[ToolCall, ...] = ()
     usage: ModelUsage = field(default_factory=ModelUsage)
     finish_reason: str = "stop"
+    reasoning: str = ""
 
 
 @dataclass(frozen=True, slots=True)

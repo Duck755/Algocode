@@ -10,6 +10,7 @@ from typing import Annotated, Any
 import typer
 
 from algocode.bootstrap import build_context
+from algocode.cli.context import resolve_data_dir
 from algocode.cli.output import JsonOption, NoColorOption, QuietOption, VerboseOption, emit_result
 from algocode.domain.errors import NotFoundError
 from algocode.domain.model import Task
@@ -82,6 +83,7 @@ def create_task(
 ) -> None:
     """Create a new task and its initial durable event."""
 
+    data_dir = resolve_data_dir(data_dir, start=project_root)
     context = build_context(project_root=project_root, data_dir=data_dir)
     if project_id is None:
         project = asyncio.run(context.project_service.get_by_root(project_root))
@@ -101,7 +103,9 @@ def list_tasks(
 ) -> None:
     """List tasks from the local read model."""
 
-    tasks = asyncio.run(build_context(data_dir=data_dir).task_service.list_tasks())
+    tasks = asyncio.run(
+        build_context(data_dir=resolve_data_dir(data_dir)).task_service.list_tasks()
+    )
     data = [_task_payload(task) for task in tasks]
     emit_result(
         "task.list",
@@ -133,7 +137,9 @@ def show_task(
     """Show one task by identifier."""
 
     try:
-        task = asyncio.run(build_context(data_dir=data_dir).task_service.get_task(task_id))
+        task = asyncio.run(
+            build_context(data_dir=resolve_data_dir(data_dir)).task_service.get_task(task_id)
+        )
     except NotFoundError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc

@@ -10,6 +10,7 @@ from typing import Annotated, Any
 import typer
 
 from algocode.bootstrap import build_context
+from algocode.cli.context import resolve_data_dir
 from algocode.cli.output import JsonOption, NoColorOption, QuietOption, VerboseOption, emit_result
 from algocode.domain.errors import NotFoundError
 from algocode.domain.model import Candidate
@@ -29,6 +30,9 @@ DataDirOption = Annotated[
 def _payload(candidate: Candidate) -> dict[str, Any]:
     payload = asdict(candidate)
     payload["base_revision"] = candidate.base_revision.value
+    payload["apply_base_revision"] = (
+        candidate.apply_base_revision.value if candidate.apply_base_revision is not None else None
+    )
     payload["created_at"] = candidate.created_at.isoformat()
     payload["frozen_at"] = candidate.frozen_at.isoformat() if candidate.frozen_at else None
     return payload
@@ -76,7 +80,7 @@ def create_candidate(
     """Create a candidate worktree from the task baseline."""
 
     candidate = asyncio.run(
-        build_context(data_dir=data_dir).candidate_service.create(
+        build_context(data_dir=resolve_data_dir(data_dir)).candidate_service.create(
             task_id,
             base_revision=base_revision,
         )
@@ -95,7 +99,9 @@ def freeze_candidate(
 ) -> None:
     """Freeze candidate edits and record the patch hash."""
 
-    candidate = asyncio.run(build_context(data_dir=data_dir).candidate_service.freeze(candidate_id))
+    candidate = asyncio.run(
+        build_context(data_dir=resolve_data_dir(data_dir)).candidate_service.freeze(candidate_id)
+    )
     _emit_candidate("candidate.freeze", candidate, json_output, no_color, quiet, verbose)
 
 
@@ -111,7 +117,7 @@ def list_candidates(
     """List candidates belonging to a task."""
 
     candidates = asyncio.run(
-        build_context(data_dir=data_dir).candidate_service.list_for_task(task_id)
+        build_context(data_dir=resolve_data_dir(data_dir)).candidate_service.list_for_task(task_id)
     )
     emit_result(
         "candidate.list",
@@ -141,7 +147,7 @@ def show_candidate(
 
     try:
         candidate = asyncio.run(
-            build_context(data_dir=data_dir).candidate_service.get(candidate_id)
+            build_context(data_dir=resolve_data_dir(data_dir)).candidate_service.get(candidate_id)
         )
     except NotFoundError as exc:
         typer.echo(str(exc), err=True)

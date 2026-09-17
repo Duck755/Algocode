@@ -237,6 +237,38 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=8,
+        statements=(
+            "ALTER TABLE candidates ADD COLUMN parent_candidate_id TEXT",
+            "ALTER TABLE candidates ADD COLUMN fork_snapshot_hash TEXT",
+            "ALTER TABLE candidates ADD COLUMN apply_base_revision TEXT",
+            "ALTER TABLE candidates ADD COLUMN apply_base_snapshot_hash TEXT",
+            """
+            UPDATE candidates
+            SET fork_snapshot_hash = base_snapshot_hash
+            WHERE fork_snapshot_hash IS NULL
+            """,
+            """
+            UPDATE candidates
+            SET apply_base_revision = (
+                    SELECT b.revision
+                    FROM baselines AS b
+                    WHERE b.task_id = candidates.task_id
+                    ORDER BY b.created_at DESC
+                    LIMIT 1
+                ),
+                apply_base_snapshot_hash = (
+                    SELECT b.snapshot_hash
+                    FROM baselines AS b
+                    WHERE b.task_id = candidates.task_id
+                    ORDER BY b.created_at DESC
+                    LIMIT 1
+                )
+            WHERE apply_base_snapshot_hash IS NULL
+            """,
+        ),
+    ),
 )
 
 

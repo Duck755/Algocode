@@ -46,13 +46,13 @@ def eval_run(
         typer.Option("--ab-candidate", help="A/B candidate provider."),
     ] = None,
     provider_key: Annotated[
-        str,
+        str | None,
         typer.Option("--provider-key", help="Configured provider key for real provider."),
-    ] = "default",
+    ] = None,
     model_key: Annotated[
-        str,
+        str | None,
         typer.Option("--model-key", help="Configured model key for real provider."),
-    ] = "default",
+    ] = None,
     data_dir: DataDirOption = None,
     json_output: JsonOption = False,
     no_color: NoColorOption = False,

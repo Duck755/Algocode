@@ -58,6 +58,51 @@ class GitRepository:
             raise GitError(message or f"{candidate} is not inside a Git repository")
         return cls(Path(output.stdout.decode(errors="replace").strip()))
 
+    @classmethod
+    async def initialize(cls, path: str | Path) -> GitRepository:
+        root = Path(path).expanduser().resolve()
+        root.mkdir(parents=True, exist_ok=True)
+        output = await _run_git(("init", "-b", "main"), cwd=root)
+        if output.exit_code != 0:
+            raise GitError(output.stderr.decode(errors="replace").strip())
+        return cls(root)
+
+    async def has_head(self) -> bool:
+        output = await _run_git(("rev-parse", "--verify", "HEAD"), cwd=self.root)
+        return output.exit_code == 0
+
+    async def commit_all(
+        self,
+        message: str,
+        *,
+        author_name: str = "Algocode",
+        author_email: str = "algocode@local",
+    ) -> bool:
+        status = await _run_git(("status", "--porcelain"), cwd=self.root)
+        if status.exit_code != 0:
+            raise GitError(status.stderr.decode(errors="replace").strip())
+        if not status.stdout and await self.has_head():
+            return False
+        add = await _run_git(("add", "-A"), cwd=self.root)
+        if add.exit_code != 0:
+            raise GitError(add.stderr.decode(errors="replace").strip())
+        commit = await _run_git(
+            (
+                "-c",
+                f"user.name={author_name}",
+                "-c",
+                f"user.email={author_email}",
+                "commit",
+                "--allow-empty",
+                "-m",
+                message,
+            ),
+            cwd=self.root,
+        )
+        if commit.exit_code != 0:
+            raise GitError(commit.stderr.decode(errors="replace").strip())
+        return True
+
     async def head_revision(self) -> str:
         output = await _run_git(("rev-parse", "HEAD"), cwd=self.root)
         if output.exit_code != 0:
@@ -191,11 +236,17 @@ class GitWorkspaceManager:
             kind=WorkspaceKind.BASELINE,
         )
 
-    async def create_candidate(self, task_id: str, base_revision: str) -> Workspace:
+    async def create_candidate(
+        self,
+        task_id: str,
+        base_revision: str,
+        source_workspace: Path | None = None,
+    ) -> Workspace:
         return await self._create_workspace(
             task_id=task_id,
             base_revision=base_revision,
             kind=WorkspaceKind.CANDIDATE,
+            source_workspace=source_workspace,
         )
 
     async def freeze(self, workspace: Workspace) -> str:
@@ -290,13 +341,15 @@ class GitWorkspaceManager:
         task_id: str,
         base_revision: str,
         kind: WorkspaceKind,
+        source_workspace: Path | None = None,
     ) -> Workspace:
         current_revision = await self.repository.head_revision()
         if current_revision != base_revision:
             raise GitError(
                 f"base revision {base_revision} does not match repository HEAD {current_revision}"
             )
-        snapshot = await self.repository.capture_snapshot(self.repository.root)
+        snapshot_source = source_workspace or self.repository.root
+        snapshot = await self.repository.capture_snapshot(snapshot_source)
         workspace_id = f"ws_{uuid4().hex}"
         destination = self.worktrees_dir / kind.value / _safe_component(task_id) / workspace_id
         await self.repository.create_worktree(destination, base_revision)

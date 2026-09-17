@@ -148,9 +148,11 @@ class SandboxProcessRunner:
             return "wsl2" if _wsl_ready(self.config.wsl_distro, self.config.network) else "disabled"
         if _docker_ready(self.config.image):
             return "docker"
+        if os.name == "nt":
+            return "native"
         if _wsl_ready(self.config.wsl_distro, self.config.network):
             return "wsl2"
-        return "disabled"
+        return "native"
 
     def _docker_command(
         self,
@@ -201,7 +203,7 @@ class SandboxProcessRunner:
         environment: dict[str, str],
     ) -> tuple[str, ...]:
         linux_cwd = _wsl_path(cwd)
-        mapped = _container_command(command, cwd.resolve())
+        mapped = _container_command(command, cwd.resolve(), target=linux_cwd)
         container_environment = _container_environment(environment)
         env_prefix = " ".join(
             f"{shlex.quote(name)}={shlex.quote(value)}"
@@ -233,6 +235,7 @@ class SandboxProcessRunner:
                 {name: value for name, value in extra_env.items() if not _is_secret_name(name)}
             )
         environment["PYTHONHASHSEED"] = "0"
+        environment["PYTHONDONTWRITEBYTECODE"] = "1"
         return environment
 
     def _truncate(self, data: bytes) -> bytes:
@@ -272,18 +275,23 @@ def _container_environment(environment: dict[str, str]) -> dict[str, str]:
     return result
 
 
-def _container_command(command: tuple[str, ...], workspace: Path) -> tuple[str, ...]:
-    return tuple(_map_argument(argument, workspace) for argument in command)
+def _container_command(
+    command: tuple[str, ...],
+    workspace: Path,
+    *,
+    target: str = "/workspace",
+) -> tuple[str, ...]:
+    return tuple(_map_argument(argument, workspace, target) for argument in command)
 
 
-def _map_argument(argument: str, workspace: Path) -> str:
-    mapped = argument.replace(str(workspace), "/workspace")
+def _map_argument(argument: str, workspace: Path, target: str) -> str:
+    mapped = argument.replace(str(workspace), target)
     if mapped.endswith("python.exe") or mapped.endswith("\\python.exe"):
         return "python3"
     basename = Path(mapped).name.lower()
     if basename.startswith(("g++", "clang++", "cl.exe")):
         return "g++" if basename.startswith("g++") else "clang++"
-    return mapped.replace("\\", "/") if mapped.startswith("/workspace") else mapped
+    return mapped.replace("\\", "/") if mapped.startswith(target) else mapped
 
 
 def _wsl_path(path: Path) -> str:
@@ -361,13 +369,14 @@ def _wsl_ready(distro: str, network: bool) -> bool:
     if shutil.which("wsl.exe") is None and shutil.which("wsl") is None:
         return False
     executable = shutil.which("wsl.exe") or shutil.which("wsl")
+    command = (
+        (executable, "-d", distro, "-u", "root", "--", "unshare", "-n", "--", "true")
+        if not network
+        else (executable, "-d", distro, "--", "true")
+    )
     try:
         result = subprocess.run(
-            (
-                (executable, "-d", distro, "-u", "root", "--", "unshare", "-n", "--", "true")
-                if not network
-                else (executable, "-d", distro, "--", "true"),
-            ),
+            command,
             capture_output=True,
             timeout=5,
             check=False,

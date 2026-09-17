@@ -66,6 +66,10 @@ class Candidate:
     patch_hash: str | None = None
     created_at: datetime = field(default_factory=utcnow)
     frozen_at: datetime | None = None
+    parent_candidate_id: CandidateId | None = None
+    fork_snapshot_hash: str | None = None
+    apply_base_revision: GitRevision | None = None
+    apply_base_snapshot_hash: str | None = None
 
 
 @dataclass(slots=True)

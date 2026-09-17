@@ -14,6 +14,7 @@ from algocode.domain.events import EventEnvelope, EventType
 from algocode.domain.model import Language, Project, ProjectId
 from algocode.languages import LanguageRegistry
 from algocode.ports import EventStore
+from algocode.project_layout import ProjectLayout
 from algocode.storage.sqlite.database import Database
 from algocode.storage.sqlite.projections.project_projection import ProjectProjection
 from algocode.workspace.git import GitRepository
@@ -105,9 +106,10 @@ def _project_id(root: Path) -> ProjectId:
 
 
 def _write_project_config(root: Path, language: Language) -> None:
-    path = root / ".algocode.yaml"
+    path = ProjectLayout.from_root(root).config_path
     if path.exists():
         return
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         yaml.safe_dump(
             {

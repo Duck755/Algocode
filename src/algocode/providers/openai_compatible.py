@@ -133,17 +133,7 @@ class OpenAICompatibleProvider:
             "messages": messages,
         }
         if request.tools:
-            payload["tools"] = [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": tool["name"],
-                        "description": tool.get("description", ""),
-                        "parameters": _json_schema(tool.get("input_schema", {})),
-                    },
-                }
-                for tool in request.tools
-            ]
+            payload["tools"] = [_tool_payload(tool) for tool in request.tools]
         if request.tool_choice is not None:
             payload["tool_choice"] = request.tool_choice
         if request.response_format is not None:
@@ -193,6 +183,7 @@ class OpenAICompatibleProvider:
             tool_calls=calls,
             usage=usage,
             finish_reason=finish_reason,
+            reasoning="".join(reasoning_parts),
         )
 
     @staticmethod
@@ -226,8 +217,21 @@ class OpenAICompatibleProvider:
         return InvalidRequestError(message)
 
 
+def _tool_payload(tool: dict[str, object]) -> dict[str, Any]:
+    function: dict[str, Any] = {
+        "name": tool["name"],
+        "description": tool.get("description", ""),
+        "parameters": _json_schema(tool.get("input_schema", {})),
+    }
+    if tool.get("strict") is True:
+        function["strict"] = True
+    return {"type": "function", "function": function}
+
+
 def _message_payload(message: Message) -> dict[str, Any]:
     payload: dict[str, Any] = {"role": message.role, "content": message.content}
+    if message.reasoning_content:
+        payload["reasoning_content"] = message.reasoning_content
     if message.tool_call_id is not None:
         payload["tool_call_id"] = message.tool_call_id
     if message.tool_calls:
@@ -254,7 +258,11 @@ def _json_schema(input_schema: object) -> dict[str, Any]:
         if not isinstance(raw, dict):
             properties[name] = {}
             continue
-        properties[name] = {key: value for key, value in raw.items() if key != "required"}
+        properties[name] = {
+            key: value
+            for key, value in raw.items()
+            if not (key == "required" and isinstance(value, bool))
+        }
         if raw.get("required") is True:
             required.append(name)
     return {
@@ -286,7 +294,13 @@ def _finish_tool_call(accumulator: _ToolCallAccumulator) -> ToolCall:
     try:
         arguments = json.loads(accumulator.arguments or "{}")
     except json.JSONDecodeError as exc:
-        raise ToolProtocolError("provider emitted invalid tool arguments") from exc
+        raise ToolProtocolError(
+            f"provider emitted invalid tool arguments for {accumulator.name}",
+            tool_name=accumulator.name,
+            call_id=accumulator.call_id,
+            raw_arguments=accumulator.arguments,
+            parse_error=str(exc),
+        ) from exc
     if not isinstance(arguments, dict):
         raise ToolProtocolError("tool arguments must be a JSON object")
     return ToolCall(id=accumulator.call_id, name=accumulator.name, arguments=arguments)

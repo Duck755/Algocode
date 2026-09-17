@@ -34,6 +34,7 @@ class CliProjectBaselineTests(unittest.TestCase):
                 str(self.project_root),
                 "--data-dir",
                 str(self.data_dir),
+                "--no-bootstrap",
                 "--json",
             ],
         )
@@ -77,7 +78,15 @@ class CliProjectBaselineTests(unittest.TestCase):
     def test_correctness_and_replay(self) -> None:
         init_result = self.runner.invoke(
             app,
-            ["init", "--path", str(self.project_root), "--data-dir", str(self.data_dir), "--json"],
+            [
+                "init",
+                "--path",
+                str(self.project_root),
+                "--data-dir",
+                str(self.data_dir),
+                "--no-bootstrap",
+                "--json",
+            ],
         )
         self.assertEqual(init_result.exit_code, 0, init_result.output)
         self.runner.invoke(

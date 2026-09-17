@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import tempfile
 import unittest
@@ -23,10 +24,25 @@ class FullE2ETests(unittest.IsolatedAsyncioTestCase):
             root = Path(directory)
             project_root = init_git_repository(
                 root / "project",
-                {"main.py": ("import time\ntime.sleep(0.05)\nprint('hello')\n")},
+                {
+                    "main.py": ("import time\ntime.sleep(0.05)\nprint('hello')\n"),
+                    ".algocode/oracle/correctness.yaml": (
+                        "schema_version: 1\n"
+                        "mode: cases\n"
+                        "comparison: line-trim\n"
+                        "cases:\n"
+                        "  - id: candidate\n"
+                        '    expected_output: "hi"\n'
+                    ),
+                    ".algocode/oracle/contract_test.py": "raise SystemExit(0)\n",
+                },
             )
             (project_root / ".algocode.yaml").write_text(
                 "acceptancePolicy:\n  minMedianImprovementPercent: -1000\n",
+                encoding="utf-8",
+            )
+            (project_root / ".git" / "info" / "exclude").write_text(
+                "__pycache__/\n*.py[cod]\n",
                 encoding="utf-8",
             )
             context = build_context(project_root=project_root, data_dir=root / "data")
@@ -73,7 +89,6 @@ class FullE2ETests(unittest.IsolatedAsyncioTestCase):
                     model=ModelRef(provider_id="mock", model_id="mock-model"),
                 )
                 result = await runtime.run(task.id, stop_after=TaskPhase.REPORT)
-
             self.assertEqual(result.status, "completed", result)
             candidates = await context.candidate_service.list_for_task(task.id)
             self.assertEqual(len(candidates), 1)
@@ -143,13 +158,7 @@ class FullE2ETests(unittest.IsolatedAsyncioTestCase):
                 root / "project",
                 {
                     "main.cpp": (
-                        "#include <chrono>\n"
-                        "#include <iostream>\n"
-                        "#include <thread>\n"
-                        "int main() {\n"
-                        "  std::this_thread::sleep_for(std::chrono::milliseconds(100));\n"
-                        '  std::cout << "hello\\n";\n'
-                        "}\n"
+                        '#include <iostream>\nint main() {\n  std::cout << "hello\\n";\n}\n'
                     )
                 },
             )
@@ -211,10 +220,40 @@ class FullE2ETests(unittest.IsolatedAsyncioTestCase):
 
 
 def _enqueue_python_agent_script(server: MockOpenAIServer) -> None:
-    for phase in ("analyze", "baseline", "plan"):
-        _enqueue_submit(server, phase)
+    for index, path in enumerate(("main.py", "main.py", ".algocode.yaml", ".algocode.yaml")):
+        server.enqueue_tool_call(
+            f"read_{index}",
+            "read_file",
+            {"path": path},
+        )
+    server.enqueue_text(
+        json.dumps(
+            {
+                "summary": "The Python entrypoint is analyzed.",
+                "language": "python",
+                "files": [{"path": "main.py", "role": "algorithm"}],
+                "optimizationCandidates": [
+                    {"id": "remove-sleep", "description": "Remove the sleep."}
+                ],
+            }
+        )
+    )
+    server.enqueue_tool_call(
+        "submit_plan",
+        "submit_optimization_plan",
+        {
+            "summary": "Remove the fixed delay.",
+            "strategy": "Replace main.py with an immediate output.",
+            "steps": [
+                {
+                    "id": "remove-sleep",
+                    "description": "Replace main.py with print('hi').",
+                    "files": ["main.py"],
+                }
+            ],
+        },
+    )
     server.enqueue_tool_call("create_candidate", "create_candidate", {})
-    _enqueue_submit(server, "generate_candidate")
     patch = (
         "diff --git a/main.py b/main.py\n"
         "--- a/main.py\n"
@@ -226,7 +265,17 @@ def _enqueue_python_agent_script(server: MockOpenAIServer) -> None:
         "+print('hi')\n"
     )
     server.enqueue_tool_call("apply_patch", "apply_patch", {"patch": patch})
-    _enqueue_submit(server, "implement")
+    server.enqueue_tool_call("run_candidate_check", "run_candidate_check", {})
+    server.enqueue_tool_call(
+        "submit_implement",
+        "submit_phase_result",
+        {
+            "phase": "implement",
+            "status": "completed",
+            "summary": "Implemented the planned delay removal.",
+            "result": {"changedFiles": ["main.py"]},
+        },
+    )
     server.enqueue_tool_call(
         "run_correctness",
         "run_correctness",
@@ -238,13 +287,12 @@ def _enqueue_python_agent_script(server: MockOpenAIServer) -> None:
             }
         },
     )
-    _enqueue_submit(server, "verify")
+    server.enqueue_tool_call("run_contract", "run_contract", {})
     server.enqueue_tool_call(
         "run_benchmark",
         "run_benchmark",
         {"spec": {"warmup": 0, "repeats": 1}},
     )
-    _enqueue_submit(server, "benchmark")
     for phase in ("compare", "decide", "report"):
         _enqueue_submit(server, phase)
 

@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 IGNORED_DIRECTORIES = {
+    ".algocode",
     ".git",
     ".idea",
     ".mypy_cache",

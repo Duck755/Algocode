@@ -29,7 +29,7 @@ from algocode.sandbox.runner import SandboxProcessRunner
 from algocode.security import SecretRedactor
 from algocode.storage.artifacts import FileArtifactStore
 from algocode.storage.events import SqliteEventStore
-from algocode.storage.paths import default_data_dir
+from algocode.storage.paths import default_data_dir, project_data_dir
 from algocode.storage.sqlite import Database
 from algocode.storage.sqlite.approval_store import ApprovalStore
 from algocode.storage.sqlite.projections.baseline_projection import BaselineProjection
@@ -77,8 +77,21 @@ def build_context(
 ) -> AppContext:
     """Load configuration and initialize local persistence."""
 
-    resolved_data_dir = Path(data_dir).expanduser() if data_dir else default_data_dir()
-    config = load_config(project_root=project_root, data_dir=resolved_data_dir)
+    if data_dir is not None:
+        resolved_data_dir = Path(data_dir).expanduser()
+        project_cache = project_data_dir(project_root) if project_root is not None else None
+        config_data_dir = (
+            default_data_dir()
+            if project_cache is not None and resolved_data_dir.resolve() == project_cache.resolve()
+            else resolved_data_dir
+        )
+    elif project_root is not None:
+        resolved_data_dir = project_data_dir(project_root)
+        config_data_dir = default_data_dir()
+    else:
+        resolved_data_dir = default_data_dir()
+        config_data_dir = resolved_data_dir
+    config = load_config(project_root=project_root, data_dir=config_data_dir)
     secret_redactor = SecretRedactor.from_config(config)
     database = Database(resolved_data_dir)
     database.initialize()
@@ -206,6 +219,7 @@ def build_context(
         event_store=event_store,
         task_service=task_service,
         project_service=project_service,
+        baseline_service=baseline_service,
         candidate_service=candidate_service,
         decision_service=decision_service,
         artifact_store=artifact_store,

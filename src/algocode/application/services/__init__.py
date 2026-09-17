@@ -6,6 +6,7 @@ from algocode.application.services.benchmark_service import BenchmarkService
 from algocode.application.services.candidate_service import CandidateService
 from algocode.application.services.correctness_service import CorrectnessService
 from algocode.application.services.decision_service import DecisionService
+from algocode.application.services.project_bootstrap_service import ProjectBootstrapService
 from algocode.application.services.project_service import ProjectService
 from algocode.application.services.report_service import ReportService
 from algocode.application.services.task_service import TaskService
@@ -17,6 +18,7 @@ __all__ = [
     "CandidateService",
     "CorrectnessService",
     "DecisionService",
+    "ProjectBootstrapService",
     "ProjectService",
     "ReportService",
     "TaskService",

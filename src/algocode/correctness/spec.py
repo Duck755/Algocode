@@ -14,6 +14,10 @@ from algocode.domain.model import ComparisonMode, CorrectnessMode
 
 DEFAULT_PROTECTED_FILES = (
     "tests/",
+    ".algocode/oracle/",
+    ".algocode/benchmarks/",
+    ".algocode/config.yaml",
+    ".algocode/contract.json",
     "oracle/",
     "generator/",
     "hidden-tests/",

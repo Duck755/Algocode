@@ -16,9 +16,11 @@ class ConfigLoaderTests(unittest.TestCase):
 
         self.assertEqual(config.version, 1)
         self.assertEqual(config.project.language, "auto")
-        self.assertEqual(config.runtime.max_steps_per_phase, 20)
+        self.assertEqual(config.runtime.max_steps_per_phase, 30)
         self.assertEqual(config.benchmark.repeats, 5)
         self.assertEqual(config.models, {})
+        self.assertEqual(config.defaults.provider, "default")
+        self.assertEqual(config.defaults.model, "default")
 
     def test_precedence_from_global_to_cli(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -166,6 +168,17 @@ benchmarks:
         self.assertEqual(config.acceptance_policy.min_median_improvement_percent, 3.5)
         self.assertEqual(config.acceptance_policy.max_variation_percent, 10)
         self.assertEqual(config.benchmarks["default"].repeats, 7)
+
+    def test_local_credential_reference_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".algocode.yaml").write_text(
+                "providers:\n  default:\n    credentialRef: local://deepseek\n",
+                encoding="utf-8",
+            )
+            config = load_config(project_root=root, data_dir=root / "data", environ={})
+
+        self.assertEqual(config.providers["default"].credential_ref, "local://deepseek")
 
     def test_credential_ref_rejects_secret_value(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -26,9 +26,47 @@ class PhaseScriptedProvider:
         self._counters: defaultdict[str, int] = defaultdict(int)
 
     async def complete(self, request: ModelRequest) -> ModelResponse:
+        if request.metadata.get("stage") == "analysis_summary":
+            return ModelResponse(
+                text=json.dumps(
+                    {
+                        "summary": "Evaluation project analyzed.",
+                        "language": self.task.language,
+                        "files": [{"path": next(iter(self.task.files)), "role": "entrypoint"}],
+                        "optimizationCandidates": [
+                            {
+                                "id": "optimize",
+                                "description": self.task.objective,
+                            }
+                        ],
+                    }
+                )
+            )
         phase = str(request.metadata.get("phase", TaskPhase.CREATE.value))
         index = self._counters[phase]
         self._counters[phase] += 1
+        if phase == TaskPhase.ANALYZE.value and index < 2:
+            return _tool(
+                f"read_required_{phase}_{index}",
+                "read_required_files",
+                {},
+            )
+        if phase == TaskPhase.PLAN.value:
+            return _tool(
+                f"plan_{phase}_{index}",
+                "submit_optimization_plan",
+                {
+                    "summary": self.task.objective,
+                    "strategy": "Apply the candidate patch.",
+                    "steps": [
+                        {
+                            "id": "s1",
+                            "description": "Apply the prepared optimization.",
+                            "files": sorted(self.task.files),
+                        }
+                    ],
+                },
+            )
         if (
             phase == TaskPhase.IMPLEMENT.value
             and index == 0
@@ -38,6 +76,17 @@ class PhaseScriptedProvider:
                 f"patch_{phase}_{index}",
                 "apply_patch",
                 {"patch": self.task.candidate_patch},
+            )
+        if phase == TaskPhase.IMPLEMENT.value and self.task.candidate_patch is not None:
+            return _tool(
+                f"implement_result_{phase}_{index}",
+                "submit_phase_result",
+                {
+                    "phase": "implement",
+                    "status": "completed",
+                    "summary": "Candidate implementation completed.",
+                    "result": {"changedFiles": sorted(self.task.files)},
+                },
             )
         if (
             phase == TaskPhase.VERIFY.value

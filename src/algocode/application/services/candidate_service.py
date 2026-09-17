@@ -39,7 +39,13 @@ class CandidateService:
         self._candidate_projection = candidate_projection
         self._data_dir = Path(data_dir)
 
-    async def create(self, task_id: TaskId | str, base_revision: str | None = None) -> Candidate:
+    async def create(
+        self,
+        task_id: TaskId | str,
+        base_revision: str | None = None,
+        source_workspace: str | Path | None = None,
+        parent_candidate_id: str | None = None,
+    ) -> Candidate:
         task = await self._task_service.get_task(task_id)
         baseline = await self._baseline_service.get_for_task(task.id)
         if baseline is None:
@@ -48,13 +54,25 @@ class CandidateService:
         project = await self._project_service.get(task.project_id)
         repository = await GitRepository.discover(project.root_path)
         manager = GitWorkspaceManager(repository, self._data_dir)
-        workspace = await manager.create_candidate(str(task.id), revision)
+        workspace = await manager.create_candidate(
+            str(task.id),
+            revision,
+            source_workspace=Path(source_workspace) if source_workspace is not None else None,
+        )
         candidate = Candidate(
             id=new_candidate_id(),
             task_id=task.id,
             base_revision=GitRevision(revision),
             base_snapshot_hash=workspace.base_snapshot_hash,
             workspace_ref=str(workspace.path),
+            parent_candidate_id=(CandidateId(parent_candidate_id) if parent_candidate_id else None),
+            fork_snapshot_hash=workspace.base_snapshot_hash,
+            apply_base_revision=GitRevision(revision),
+            apply_base_snapshot_hash=(
+                baseline.snapshot_hash
+                if source_workspace is not None
+                else workspace.base_snapshot_hash
+            ),
         )
         seq = await self._next_seq(str(task.id))
         await self._event_store.append(
@@ -72,6 +90,18 @@ class CandidateService:
                         "workspace_ref": candidate.workspace_ref,
                         "status": candidate.status.value,
                         "created_at": candidate.created_at.isoformat(),
+                        "parent_candidate_id": (
+                            str(candidate.parent_candidate_id)
+                            if candidate.parent_candidate_id is not None
+                            else None
+                        ),
+                        "fork_snapshot_hash": candidate.fork_snapshot_hash,
+                        "apply_base_revision": (
+                            candidate.apply_base_revision.value
+                            if candidate.apply_base_revision is not None
+                            else None
+                        ),
+                        "apply_base_snapshot_hash": candidate.apply_base_snapshot_hash,
                     },
                 ),
             ),

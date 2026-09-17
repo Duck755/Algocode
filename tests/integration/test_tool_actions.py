@@ -90,6 +90,42 @@ class ToolActionTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(applied.status, "success", applied.summary)
 
+        (candidate.path / "oracle").mkdir(exist_ok=True)
+        (candidate.path / "oracle" / "correctness.yaml").write_text(
+            """
+schema_version: 1
+mode: cases
+comparison: line-trim
+require_determinism: false
+cases:
+  - id: candidate
+    expected_output: "hi"
+""".strip()
+            + "\n",
+            encoding="utf-8",
+        )
+        (candidate.path / "benchmarks").mkdir(exist_ok=True)
+        (candidate.path / "benchmarks" / "benchmark.yaml").write_text(
+            """
+schema_version: 1
+warmup: 0
+repeats: 1
+timeout_seconds: 60
+metric: wall_time
+direction: minimize
+""".strip()
+            + "\n",
+            encoding="utf-8",
+        )
+        (candidate.path / "oracle" / "contract_test.py").write_text(
+            "raise SystemExit(0)\n",
+            encoding="utf-8",
+        )
+
+        candidate_check = await registry.execute("run_candidate_check", {}, candidate_context)
+        self.assertEqual(candidate_check.status, "success", candidate_check.summary)
+        self.assertTrue(candidate_check.structured["snapshot_hash"])
+
         correctness = await registry.execute(
             "run_correctness",
             {
@@ -102,6 +138,23 @@ class ToolActionTests(unittest.IsolatedAsyncioTestCase):
             replace(candidate_context, phase=TaskPhase.VERIFY),
         )
         self.assertEqual(correctness.status, "success", correctness.summary)
+
+        correctness_from_path = await registry.execute(
+            "run_correctness",
+            {"spec_path": "oracle/correctness.yaml"},
+            replace(candidate_context, phase=TaskPhase.VERIFY),
+        )
+        self.assertEqual(
+            correctness_from_path.status,
+            "success",
+            correctness_from_path.summary,
+        )
+        contract = await registry.execute(
+            "run_contract",
+            {},
+            replace(candidate_context, phase=TaskPhase.VERIFY),
+        )
+        self.assertEqual(contract.status, "success", contract.summary)
 
         benchmark_context = ToolContext(
             task=self.task,
@@ -122,6 +175,16 @@ class ToolActionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(benchmark.status, "success", benchmark.summary)
         self.assertTrue(benchmark.structured["comparison_valid"])
+
+        benchmark_from_path = await registry.execute(
+            "run_benchmark",
+            {"spec_path": "benchmarks/benchmark.yaml"},
+            replace(
+                benchmark_context,
+                correctness_result_id=str(correctness_from_path.structured["result_id"]),
+            ),
+        )
+        self.assertEqual(benchmark_from_path.status, "success", benchmark_from_path.summary)
 
 
 if __name__ == "__main__":

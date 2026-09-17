@@ -194,8 +194,11 @@ class BenchmarkService:
                     candidate_id=candidate_id,
                     sandbox_runner=self._language_registry.sandbox_runner,
                 )
+                baseline_samples = tuple(
+                    sample for sample in samples if sample.target_kind == "baseline"
+                )
                 baseline_summary = summarize_samples(
-                    samples,
+                    baseline_samples,
                     metric=spec.metric,
                 )
                 candidate_samples = tuple(

@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from pydantic import BaseModel
+
 from algocode.domain.model import ArtifactRef, Task, TaskPhase
 from algocode.languages.types import BuildProfile
 
@@ -18,6 +20,8 @@ class ToolDefinition:
     description: str
     input_schema: dict[str, object]
     output_schema: dict[str, object] = field(default_factory=dict)
+    argument_model: type[BaseModel] | None = None
+    strict: bool = False
     effects: str = "read"
     idempotent: bool = True
     parallelizable: bool = True
@@ -41,6 +45,8 @@ class ToolContext:
     workspace: Path
     candidate_id: str | None = None
     correctness_result_id: str | None = None
+    candidate_base_workspace: Path | None = None
+    candidate_parent_candidate_id: str | None = None
     artifact_store: Any = None
     language_registry: Any = None
     correctness_service: Any = None

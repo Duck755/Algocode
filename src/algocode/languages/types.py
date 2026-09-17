@@ -75,3 +75,14 @@ class BuildResult:
     @property
     def output(self) -> bytes:
         return self.stdout + self.stderr
+
+
+@dataclass(frozen=True, slots=True)
+class ContractTestResult:
+    passed: bool
+    stdout: bytes = b""
+    stderr: bytes = b""
+    message: str = ""
+    candidate_exit_code: int | None = None
+    reference_exit_code: int | None = None
+    truncated: bool = False

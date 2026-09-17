@@ -6,6 +6,8 @@ import os
 from collections.abc import Mapping
 from dataclasses import fields, is_dataclass, replace
 
+from algocode.security.credentials import CredentialStore
+
 REDACTED = "[REDACTED]"
 
 
@@ -24,13 +26,22 @@ class SecretRedactor:
         environ: Mapping[str, str] | None = None,
     ) -> SecretRedactor:
         source = os.environ if environ is None else environ
-        names: set[str] = set()
+        secrets: set[str] = set()
+        credential_store = CredentialStore()
         for provider in config.providers.values():
-            if provider.api_key_env:
-                names.add(provider.api_key_env)
-            if provider.credential_ref and provider.credential_ref.startswith("env://"):
-                names.add(provider.credential_ref.removeprefix("env://"))
-        return cls(tuple(value for name in names if (value := source.get(name))))
+            if provider.api_key_env and (value := source.get(provider.api_key_env)):
+                secrets.add(value)
+            if not provider.credential_ref:
+                continue
+            if provider.credential_ref.startswith("env://"):
+                name = provider.credential_ref.removeprefix("env://")
+                if value := source.get(name):
+                    secrets.add(value)
+            elif provider.credential_ref.startswith("local://"):
+                name = provider.credential_ref.removeprefix("local://")
+                if value := credential_store.get(name):
+                    secrets.add(value)
+        return cls(tuple(secrets))
 
     @property
     def has_secrets(self) -> bool:
