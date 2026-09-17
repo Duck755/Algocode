@@ -1,15 +1,37 @@
 [build-system]
-requires = ["hatchling>=1.27,<2"]
+requires = ["hatchling>=1.27,<1.32"]
 build-backend = "hatchling.build"
 
 [project]
-name = "algocode"
-version = "0.1.0.dev0"
+name = "algocode-agent"
+dynamic = ["version"]
 description = "A reproducible algorithm optimization agent for C++ and Python"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
+authors = [
+    { name = "acd2113" },
+]
+keywords = [
+    "algorithm",
+    "optimization",
+    "agent",
+    "benchmark",
+    "python",
+    "cpp",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+]
 dependencies = [
     "httpx>=0.27,<1",
     "pydantic>=2.12,<3",
@@ -17,15 +39,27 @@ dependencies = [
     "typer>=0.12,<1",
 ]
 
+[project.urls]
+Homepage = "https://github.com/acd2113/Algocode"
+Repository = "https://github.com/acd2113/Algocode"
+Issues = "https://github.com/acd2113/Algocode/issues"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8,<10",
     "ruff>=0.9,<1",
 ]
+build = [
+    "build>=1.2,<2",
+    "twine>=6,<7",
+]
 docs = ["markitdown"]
 
 [project.scripts]
 algocode = "algocode.cli.main:main"
+
+[tool.hatch.version]
+path = "src/algocode/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/algocode"]

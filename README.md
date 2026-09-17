@@ -1,7 +1,7 @@
 # Algocode
 
 <p align="center">
-  <img src="./docs/picture/algocode_icon.jpg" alt="Algocode" width="180">
+  <img src="https://raw.githubusercontent.com/acd2113/Algocode/main/docs/picture/algocode_icon.jpg" alt="Algocode" width="180">
 </p>
 <br>
 <p align="center">面向 C++ / Python 的可验证算法优化 Agent</p>
@@ -116,6 +116,14 @@ CREATE
 - 使用真实模型时需要 OpenAI-compatible Provider；
 - Docker 或 WSL2 不是强制依赖，但可以用于更明确的沙箱边界。
 
+从 PyPI 安装：
+
+```bash
+python -m pip install algocode-agent
+```
+
+从源码开发安装：
+
 Windows PowerShell：
 
 ```powershell
@@ -132,7 +140,7 @@ python3 -m venv .venv
 .venv/bin/python -m algocode doctor
 ```
 
-当前项目尚未确认已发布到 PyPI。若没有安装 `algocode` 命令，可将后续命令替换为对应虚拟环境下的 `python -m algocode`。
+若没有安装 `algocode` 命令，可将后续命令替换为对应虚拟环境下的 `python -m algocode`。
 
 > Native Windows Sandbox 不是强隔离。涉及不可信代码时，建议使用 Docker 或 WSL2 后端。
 
