@@ -1,128 +1,94 @@
-# Algocode
-
 <p align="center">
-  <img src="https://raw.githubusercontent.com/acd2113/Algocode/main/docs/picture/algocode_icon.jpg" alt="Algocode" width="180">
+  <img src="https://raw.githubusercontent.com/acd2113/Algocode/main/docs/picture/algocode_icon.png" alt="Algocode" width="120">
 </p>
-<br>
+
 <p align="center">面向 C++ / Python 的可验证算法优化 Agent</p>
-<p align="center">本地优先、证据驱动、可回滚</p>
+<p align="center">本地优先 · 证据驱动 · 可回滚</p>
 
-## Algocode 是什么
+***
 
-Algocode 是一个类git、命令行优先的算法优化 Agent，面向已经存在的 C++ 或 Python 项目。
+## 项目简介
 
-它会分析项目入口、公开 API、配置和可观察行为，生成项目行为契约，并由此派生优化目标、Correctness 规范和 Benchmark 规范。随后，Algocode 在独立 Git Worktree 中生成候选实现，先验证正确性和行为契约，再运行 Benchmark，最终输出可审查的 Diff、证据和报告。
+Algocode 是一个命令行驱动的算法优化 Agent，面向已有的 C++ 或 Python 项目。它会自动分析项目结构与行为，生成行为契约，然后在隔离的 Git Worktree 中尝试算法优化，并通过 Correctness 验证、Contract 测试和 Benchmark 对比来确保优化结果的正确性与收益。
 
-Algocode 的目标不是替代算法工程师，而是缩短下面这条反馈循环：
+**核心特性：**
 
-```text
-发现优化点
-  -> 实现候选
-  -> 验证语义
-  -> 测量收益
-  -> 决定是否采用
-```
+- **契约优先** — 优化前先确定公开 API、输入输出、配置语义等约束，候选实现必须通过行为契约
 
-Algocode 不会把一次 Benchmark 结果当作唯一真相，也不会在正确性未知时声称性能提升。
+- **证据驱动** — Correctness、Contract、Benchmark 结果均持久化，决策基于运行时证据而非自我评价
 
-## 设计原则
+- **隔离候选** — Agent 在独立 Worktree 中试错，用户工作区仅在执行 `apply` 时才被修改
 
-### Contract First
+- **人工可控** — Accept 与 Apply 分离，支持查看 Diff 和证据后再决策，Apply 后可 Rollback
 
-优化前先确定公开 API、输入输出、配置语义、状态转换、错误行为和不可变约束。Candidate 不能只复制原实现的“表面输出”，还必须通过行为契约。
+- **全程可审计** — 模型调用、工具调用、阶段结果、优化记录、候选血缘均完整保存
 
-### Evidence Driven
+## 使用守则（使用前必看）
 
-Benchmark 不是模型的自我评价，而是运行时产生的证据。Correctness、Contract、Benchmark、Comparison 和 Decision 都会被持久化。
+待优化代码需满足以下条件：
 
-### Isolated Candidate
+**通用要求：**
 
-Agent 不直接在用户工作区上试错。候选实现运行在独立 Worktree 中，用户工作区只在明确执行 Apply 时被修改。
+| 条件            | 说明                                     |
+| ------------- | -------------------------------------- |
+| Git 仓库        | 项目需是 Git 仓库，否则 Algocode 会自动初始化一个       |
+| 单主语言          | 一个项目只支持一种主语言（C++ 和 Python 同时存在时优先 C++） |
+| 明确入口          | 有可执行的入口文件，运行后能输出结果                     |
+| 确定性输出         | 相同输入下输出一致（用于 Correctness 验证）           |
+| 进程级 Benchmark | 以整个程序运行为测量单位，不支持函数级 Benchmark          |
 
-### Human Controlled
+**Python 项目：**
 
-Accept 与 Apply 分离。用户可以查看 Diff、报告和证据，再决定是否采用。Apply 后仍可以 Rollback。
+- 项目中有 `.py` 文件，或存在 `pyproject.toml` / `setup.py`
 
-### Auditable
+- 入口文件优先匹配 `main.py` 或 `test.py`，否则取第一个非 `__init__.py` 的文件
 
-每次模型调用、工具调用、阶段结果、优化记录、候选血缘和回滚信息都会保存，方便定位失败原因和复盘。
+- 入口程序能正常运行且退出码为 0
 
-## 核心能力
+**C++ 项目：**
 
-| 能力 | 说明 |
-|---|---|
-| Python 支持 | Contract Test、Correctness、Benchmark、Candidate Worktree 和 Runtime 流程 |
-| C++ 支持 | 单入口 C++ Contract Test、candidate/reference 双编译差分和 Benchmark |
-| Contract Discovery | 从代码、文档、配置和行为中提取项目契约 |
-| Correctness Gate | Candidate 必须通过输出正确性和 Contract 检查 |
-| Benchmark Evidence | 保存 warmup、重复样本、median、variation 和环境 hash |
-| Candidate Worktree | 使用 Git Worktree 隔离候选实现，避免直接污染源码 |
-| Accept / Apply 分离 | 先做决策，再修改用户工作区，支持 stale 检查 |
-| Rollback | Apply 后按 manifest 恢复原状态 |
-| Retry | 基于历史优化记录从 PLAN 重新搜索方向 |
-| Model Logs | 保存 System Prompt、输入、输出、Reasoning、Tool Calls、Usage 和错误 |
-| JSON CLI | 大多数命令支持 `--json`，便于脚本和自动化集成 |
-| Provider Adapter | 当前支持 OpenAI-compatible Chat Completions |
-| Sandbox | 支持 process、Docker、WSL2 等后端策略 |
+- 项目中有 `.cpp` / `.cc` / `.cxx` 文件，或存在 `CMakeLists.txt` / `Makefile`
 
-## 工作流
+- 系统需安装 `g++` 或 `clang++`（支持 C++17）
 
-```mermaid
-flowchart LR
-  INIT[init] --> CONTRACT[Contract]
-  CONTRACT --> TASK[Task]
-  TASK --> BASELINE[Baseline]
-  BASELINE --> ANALYZE[Analyze]
-  ANALYZE --> PLAN[Plan]
-  PLAN --> CANDIDATE[Candidate Worktree]
-  CANDIDATE --> IMPLEMENT[Implement]
-  IMPLEMENT --> VERIFY[Correctness + Contract]
-  VERIFY --> BENCH[Benchmark]
-  BENCH --> COMPARE[Compare]
-  COMPARE --> DECIDE[Decision]
-  DECIDE --> REVIEW[Review]
-  REVIEW --> ACCEPT[Accept]
-  ACCEPT --> APPLY[Apply]
-  APPLY --> ROLLBACK[Rollback]
-  DECIDE --> RETRY[Retry]
-  RETRY --> PLAN
-```
+- 入口文件优先匹配 `main.cpp` 或 `test.cpp`，否则取第一个源文件
 
-内部阶段：
+- 代码能正常编译并运行，退出码为 0
 
-```text
-CREATE
-  -> ANALYZE
-  -> BASELINE
-  -> PLAN
-  -> GENERATE_CANDIDATE
-  -> IMPLEMENT
-  -> VERIFY
-  -> BENCHMARK
-  -> COMPARE
-  -> DECIDE
-  -> REPORT
-```
+**暂不支持的场景：**
 
-阶段之间存在 Gate。Candidate 未通过 Correctness 时不能进入 Benchmark；没有有效 Comparison 时不能进入 Decide。
+- 跨语言混合项目（如 Python 调用 C++ 扩展）
 
-## 环境要求与安装
+- 多翻译单元 / 复杂 CMake 项目的 Contract Harness
 
-要求：
+- 运行时依赖网络、外部文件系统等不确定因素的代码
 
-- Python 3.11 或更高版本；
-- Git；
-- 优化 C++ 项目时需要可用的 C++ 编译器和构建工具；
-- 使用真实模型时需要 OpenAI-compatible Provider；
-- Docker 或 WSL2 不是强制依赖，但可以用于更明确的沙箱边界。
+- 函数级 / 模块级 Benchmark（仅支持进程级）
 
-从 PyPI 安装：
+## 环境与依赖
+
+### 系统要求
+
+| 依赖                         | 最低版本  | 说明               |
+| -------------------------- | ----- | ---------------- |
+| Python                     | 3.11+ | 运行环境             |
+| Git                        | —     | Worktree 隔离与版本管理 |
+| C++ 编译器                    | —     | 优化 C++ 项目时需要     |
+| OpenAI-compatible Provider | —     | 使用真实模型时需要        |
+
+可选增强：
+
+- **Docker / WSL2** — 用于更强的沙箱隔离（非强制）
+
+### 安装
+
+**从 PyPI 安装：**
 
 ```bash
 python -m pip install algocode-agent
 ```
 
-从源码开发安装：
+**从源码开发安装：**
 
 Windows PowerShell：
 
@@ -140,503 +106,284 @@ python3 -m venv .venv
 .venv/bin/python -m algocode doctor
 ```
 
-若没有安装 `algocode` 命令，可将后续命令替换为对应虚拟环境下的 `python -m algocode`。
+> 若 `algocode` 命令不可用，可替换为对应虚拟环境下的 `python -m algocode`。
 
-> Native Windows Sandbox 不是强隔离。涉及不可信代码时，建议使用 Docker 或 WSL2 后端。
+### 配置模型 Provider
 
-## 配置 Provider、Model 和 API Key
-
-推荐使用交互式命令完成首次配置：
+首次使用时，通过交互式命令配置模型和 API Key：
 
 ```bash
-algocode api
-algocode test
+algocode api          # 选择厂商、模型并配置 API Key
+algocode test         # 验证模型连接是否正常
 ```
 
-`algocode api` 会显示 OpenAI、DeepSeek、OpenRouter、Kimi、智谱 GLM、MiniMax、Anthropic Claude、火山引擎豆包、通义千问 Qwen、自定义 OpenAI-compatible 和本地 Ollama / vLLM 选项，并把 Provider、默认模型和 API Key 配置到本机。API Key 不会写入项目 YAML，而是保存在用户本机凭证文件中。
+支持的 Provider 包括：OpenAI、DeepSeek、OpenRouter、Kimi、智谱 GLM、MiniMax、Anthropic Claude、火山引擎豆包、通义千问 Qwen，以及任意 OpenAI-compatible 服务（如本地 Ollama / vLLM）。
 
-切换模型：
+API Key 保存在用户本机凭证文件中，不会写入项目配置。
+
+**切换默认模型：**
 
 ```bash
 algocode model
 ```
 
-Provider、模型和默认项写入用户全局配置：
+## 使用教程
 
-```text
-Windows
-%LOCALAPPDATA%\algocode\config.yaml
+### 项目要求
 
-Linux
-~/.local/share/algocode/config.yaml
+待优化的代码需要满足以下条件：
 
-macOS
-~/Library/Application Support/algocode/config.yaml
-```
+**通用要求：**
 
-项目的 `.algocode/config.local.yaml` 只用于项目级覆盖，不由 `algocode api` 自动写入。不要把 API Key 写进 YAML。
+| 条件            | 说明                                     |
+| ------------- | -------------------------------------- |
+| Git 仓库        | 项目需是 Git 仓库，否则 Algocode 会自动初始化一个       |
+| 单主语言          | 一个项目只支持一种主语言（C++ 和 Python 同时存在时优先 C++） |
+| 明确入口          | 有可执行的入口文件，运行后能输出结果                     |
+| 确定性输出         | 相同输入下输出一致（用于 Correctness 验证）           |
+| 进程级 Benchmark | 以整个程序运行为测量单位，不支持函数级 Benchmark          |
 
-```yaml
-version: 1
+**Python 项目：**
 
-project:
-  language: auto
-  source_root: "."
+- 项目中有 `.py` 文件，或存在 `pyproject.toml` / `setup.py`
 
-providers:
-  default:
-    type: openai-compatible
-    base_url: https://your-provider.example/v1
-    api_key_env: ALGOCODE_MODEL_API_KEY
+- 入口文件优先匹配 `main.py` 或 `test.py`，否则取第一个非 `__init__.py` 的文件
 
-models:
-  default:
-    provider: default
-    model: your-model-name
-    context_window: 128000
+- 入口程序能正常运行且退出码为 0
 
-defaults:
-  provider: default
-  model: default
+**C++ 项目：**
 
-runtime:
-  max_steps_per_phase: 30
-  max_tool_calls_per_phase: 50
-  max_candidates: 3
-  network: false
+- 项目中有 `.cpp` / `.cc` / `.cxx` 文件，或存在 `CMakeLists.txt` / `Makefile`
 
-benchmark:
-  method: process
-  warmup: 2
-  repeats: 5
-  primary_metric: wall_time
-  direction: minimize
+- 系统需安装 `g++` 或 `clang++`（支持 C++17）
 
-acceptance_policy:
-  require_correctness: true
-  min_median_improvement_percent: 0.0
-  max_variation_percent: null
+- 入口文件优先匹配 `main.cpp` 或 `test.cpp`，否则取第一个源文件
 
-policy:
-  approval:
-    mode: non-interactive
-  sandbox:
-    mode: process
-    backend: auto
-    network: false
-    timeout_seconds: 120
-```
+- 代码能正常编译并运行，退出码为 0
 
-Provider Key 通过环境变量传入：
+**暂不支持的场景：**
 
-```powershell
-$env:ALGOCODE_MODEL_API_KEY = "your-api-key"
-```
+- 跨语言混合项目（如 Python 调用 C++ 扩展）
 
-Secret 只允许通过 `api_key_env` 或 `credential_ref` 引用，不允许直接出现在配置文件、Prompt、Event、日志或报告中。
+- 多翻译单元 / 复杂 CMake 项目的 Contract Harness
 
-## 快速开始
+- 运行时依赖网络、外部文件系统等不确定因素的代码
 
-在待优化的项目目录中执行：
+- 函数级 / 模块级 Benchmark（仅支持进程级）
+
+### 快速开始
+
+在待优化的项目根目录下执行：
 
 ```bash
-algocode api
-algocode test
-algocode doctor
-algocode init
-algocode status
-algocode optimize
+algocode init         # 初始化项目，建立基线
+algocode optimize     # 运行优化流程
 ```
 
-`init` 成功后会保存当前 Task，因此后续命令通常不需要手动复制 Task ID。
-
-查看结果：
+查看结果与证据：
 
 ```bash
-algocode status
-algocode review
-algocode diff
+algocode status       # 查看当前任务状态
+algocode review       # 查看候选验证结果与决策证据
+algocode diff         # 查看候选代码变更
 ```
 
-接受并应用候选：
+接受并应用优化：
 
 ```bash
 algocode accept <task-id> <candidate-id>
 algocode apply
 ```
 
-回滚：
+回滚已应用的优化：
 
 ```bash
 algocode rollback
 ```
 
-基于历史记录重新搜索方向：
+基于历史记录重新搜索优化方向：
 
 ```bash
 algocode retry
 ```
 
-只做本地流程自测，不调用真实 Provider：
+### 核心命令
 
-```bash
-algocode optimize --fake-provider
+| 命令                  | 说明                      |
+| ------------------- | ----------------------- |
+| `algocode api`      | 配置模型 Provider 和 API Key |
+| `algocode test`     | 发送最小请求验证模型连接            |
+| `algocode doctor`   | 检查本地运行环境                |
+| `algocode init`     | 初始化项目并建立基线（大约耗时7分钟）     |
+| `algocode optimize` | 运行完整优化流程（大约耗时5分钟）       |
+| `algocode retry`    | 基于历史记录重新优化（同上）          |
+| `algocode status`   | 查看当前任务状态                |
+| `algocode review`   | 查看当前优化结果信息              |
+| `algocode diff`     | 查看候选代码变更                |
+| `algocode apply`    | 将候选应用到工作区               |
+| `algocode rollback` | 回滚已应用的候选                |
+| `algocode report`   | 生成任务报告                  |
+
+大多数命令支持 `--json` 输出，便于脚本集成。
+
+### 优化工作流
+
+```
+init → 契约发现 → 基线建立 → 分析 → 规划 → 候选实现
+                                    ↓
+                         正确性验证 ← 候选 Worktree
+                                    ↓
+                              Benchmark 对比
+                                    ↓
+                              决策 → 审查 → 接受 → 应用
+                                    ↓
+                                  重试
 ```
 
-脚本场景优先使用 JSON：
+各阶段之间存在 Gate：候选未通过 Correctness 时不会进入 Benchmark；没有有效对比结果时不会进入决策。
 
-```bash
-algocode status --json
-algocode optimize --json
-algocode review --json
+### 验证体系
+
+Algocode 将优化结果拆为三类证据：
+
+| 类型              | 说明                                                |
+| --------------- | ------------------------------------------------- |
+| **Correctness** | 验证候选实现是否复现基线行为，支持 cases、oracle、stress、hybrid 等模式  |
+| **Contract**    | 保护算法之外的行为，如公开 API、配置字段、错误类型、边界行为等                 |
+| **Benchmark**   | 受控的性能测量，记录 warmup、重复样本、median、variation、环境 hash 等 |
+
+## 目录结构说明
+
+### 项目源码结构
+
+```
+src/algocode/
+├── cli/                  # 命令行入口（Typer）
+├── application/          # 应用服务层（Task、Candidate、Benchmark 等）
+├── domain/               # 领域层（实体、值对象、事件）
+├── runtime/              # 运行时（阶段机、Tool Loop、Retry）
+├── config/               # 配置加载与模型
+├── context/              # 上下文构建与估算
+├── tools/                # 工具注册表与内置工具
+├── policy/               # 策略引擎
+├── approval/             # 审批服务
+├── sandbox/              # 沙箱运行器
+├── security/             # 凭证与脱敏
+├── providers/            # 模型 Provider 适配
+├── languages/            # 语言支持（Python / C++）
+├── correctness/          # 正确性验证引擎
+├── benchmark/            # Benchmark 引擎
+├── acceptance/           # 验收与发布门禁
+├── eval/                 # 评估套件
+├── workspace/            # Git Workspace 管理
+├── storage/              # 持久化（Event Store、Projection、Artifact）
+├── ports/                # 端口与抽象接口
+├── resources/            # 资源提供方
+├── observability/        # 可观察性
+├── report/               # 报告生成
+└── bootstrap.py          # 应用组装根
 ```
 
-## init、optimize 与 retry
+### 项目内 .algocode 目录
 
-### `algocode init`
+执行 `init` 后，项目根目录会生成 `.algocode/` 目录：
 
-默认执行完整 Bootstrap：
-
-```text
-检测或初始化 Git 仓库
-  -> 检测主语言
-  -> 写入 .algocode/config.yaml
-  -> 写入 .algocode/.gitignore
-  -> Contract Discovery
-  -> Contract Compiler
-  -> 生成并验证 Contract Test
-  -> 生成 Oracle、Correctness 和 Benchmark 规范
-  -> 创建初始 commit
-  -> 注册 Project
-  -> 创建 Task
-  -> 捕获 Baseline
-  -> 运行 Baseline Correctness
-  -> 运行 Baseline Benchmark
-  -> 持久化 current-task.json 和 task.txt
+```
+.algocode/
+├── config.yaml           # 项目配置
+├── config.local.yaml     # 本地覆盖（可选）
+├── contract.json         # 项目行为契约
+├── task.txt              # 当前任务摘要
+├── current-task.json     # 当前任务完整状态
+├── oracle/               # Correctness 与 Contract Test
+│   ├── check.py
+│   ├── correctness.yaml
+│   ├── contract_test.py  # Python 项目
+│   ├── contract_test.cpp # C++ 项目
+│   └── reference/
+├── benchmarks/
+│   └── benchmark.yaml    # Benchmark 规范
+└── cache/                # 运行时缓存与数据
+    ├── algocode.db       # Event Store 与 Projection
+    ├── artifacts/        # 产物存储
+    ├── model-logs/       # 模型调用记录
+    ├── optimization-records/  # 优化记录
+    ├── worktrees/        # Baseline 与 Candidate Worktree
+    ├── repair-memory/    # 修复上下文
+    └── rollbacks/        # 回滚清单
 ```
 
-Python 项目会生成 `check.py`、`contract_test.py`、`correctness.yaml` 和 `benchmark.yaml`。C++ 项目会生成 `contract_test.cpp`、`correctness.yaml` 和 `benchmark.yaml`，并分别针对 candidate 与 reference 编译后比较确定性输出。
+## 使用示例
 
-只注册项目而不执行 Bootstrap：
+执行api选择
+![img\_1.png](img_1.png)
 
-```bash
-algocode init --no-bootstrap
-```
+将需要优化的文件放入一个文件夹中
+![img.png](img.png)
 
-### `algocode optimize`
+执行命令algocode init
+会实现初始化项目并自动生成优化提示词（共调用2次大模型）
+![img\_2.png](img_2.png)
 
-```bash
-algocode optimize
-algocode optimize <task-id>
-```
+执行命令algocode optimize启动优化
+![img\_3.png](img_3.png)
+Status：completed即为优化成功
+\
+后续可执行\
+algocode review查看性能提升\
+algocode diff 查看代码修改
+\
+algocode report 生成报告
+\
+algocode apply 将优化后代码覆盖test.py
+\
+algocode rollback 回滚代码
 
-常用参数：
+## 常见问题
 
-```text
---provider <provider-key>
---model <model-key>
---candidate-id <candidate-id>
---candidate-workspace <path>
---max-steps <n>
---max-tool-calls <n>
---stop-after <phase>
---json
-```
+Status不是completed？答：优化流程不稳定，可以重试或者查看.algocode\cache\model-logs，看模型调用进度
+algocode init出现问题？ 答：可能是待优化代码无法编译或者是不符合条件
 
-默认运行到 `report`。非完成状态会返回非零退出码，但脚本应优先读取 JSON 中的 `status`。
+## 联系与贡献
 
-阶段职责：
+### 反馈问题
 
-| 阶段 | 主要职责 |
-|---|---|
-| ANALYZE | 阅读项目、理解热点和约束 |
-| PLAN | 产出可执行的优化计划 |
-| GENERATE_CANDIDATE | 创建独立 Candidate Worktree |
-| IMPLEMENT | 编辑候选代码并运行候选自检 |
-| VERIFY | 执行 Correctness 和 Contract |
-| BENCHMARK | 运行受控 Benchmark |
-| COMPARE | 计算 baseline 与 candidate 的差异 |
-| DECIDE | 根据证据生成决策 |
-| REPORT | 输出结果、证据和限制 |
+遇到 Bug 或有功能建议，欢迎在 [GitHub Issues](https://github.com/acd2113/Algocode/issues) 中提出。提交时尽量提供：
 
-IMPLEMENT 阶段由 Agent 运行 Tool Loop。每次 Turn 都会重新组装上下文，执行 Provider 调用和 Tool Calls，并将 Tool Result 注入下一轮。
-
-### `algocode retry`
-
-`retry` 不是简单重跑：
-
-1. 加载当前 Task 的历史 Optimization Records；
-2. 写入 `task.retry_requested`；
-3. 从 PLAN 阶段重新开始；
-4. 将历史计划、候选结果和失败信息注入上下文；
-5. 判断上一次方案是否已经到达当前方向的上限；
-6. 选择继续优化、切换方向或重新建立假设；
-7. 从 Candidate Workspace 分叉新 Candidate；
-8. 保留 `parent_candidate_id` 和 `fork_snapshot_hash` 作为代码血缘；
-9. Apply Base 仍指向 Task Baseline。
+- 操作系统与 Python 版本
 
-没有历史 Optimization Record 时，`retry` 会拒绝执行，而不是凭空重跑。
-
-## 验证体系
-
-Algocode 将优化结果拆成三类证据。
-
-### Correctness
-
-验证候选实现是否可以复现基线行为。支持 `cases`、`oracle`、`stress`、`hybrid` 和 checker command。
-
-### Contract
-
-保护算法之外的行为，例如公开 API、配置字段、错误类型、状态转换、边界行为和可观察输出。Python 使用 `.algocode/oracle/contract_test.py`，C++ 使用 `.algocode/oracle/contract_test.cpp`。
-
-### Benchmark
-
-Benchmark 默认是 process-level，主动拒绝 function-scope Benchmark。每次运行会记录 run command、warmup、repeats、timeout、metric、direction、raw samples、median、variation、input hash、spec hash、environment hash 和 baseline/candidate comparison。
-
-Candidate 未通过 Correctness 或 Contract 时，不会进入有效的 Benchmark Comparison。
-
-## Candidate 生命周期
-
-```text
-generated
-  -> editing
-  -> verifying
-  -> verified
-  -> selected / accepted
-  -> applied
-  -> rolled_back
-```
-
-Candidate 不直接修改用户工作区。Agent 在 Worktree 中完成编辑和验证。
-
-Accept 要求 Candidate 属于当前 Task、Correctness passed、Benchmark completed、Comparison valid，并满足 Acceptance Policy。
-
-Apply 会检查 Candidate 是否已 Accepted、用户工作区是否仍与 Apply Base 一致、Candidate 是否 stale，以及是否可以产生 rollback manifest。
-
-Rollback 只处理已经 applied 的 Candidate。如果当前工作区已经从 Apply 后状态继续变化，自动回滚会被拒绝。
-
-## .algocode 目录结构
-
-```text
-<project>/
-  .algocode/
-    .gitignore
-    config.yaml
-    config.local.yaml
-    contract.json
-    task.txt
-    current-task.json
-
-    oracle/
-      check.py
-      correctness.yaml
-      contract_test.py
-      contract_test.cpp
-      reference/
-
-    benchmarks/
-      benchmark.yaml
-
-    cache/
-      algocode.db
-      artifacts/
-      locks/
-      model-logs/
-      optimization-records/
-      repair-memory/
-      worktrees/
-      rollbacks/
-      evals/
-```
-
-关键路径：
-
-| 路径 | 作用 |
-|---|---|
-| `.algocode/contract.json` | 项目行为契约 |
-| `.algocode/current-task.json` | 当前 Task、状态和下一步命令 |
-| `.algocode/oracle/` | Correctness、Contract Test 和 Reference |
-| `.algocode/benchmarks/` | Benchmark 规范 |
-| `.algocode/cache/algocode.db` | Event Store 和 Projection |
-| `.algocode/cache/model-logs/` | 每次模型调用记录 |
-| `.algocode/cache/optimization-records/` | 每次 optimize / retry 的优化记录 |
-| `.algocode/cache/repair-memory/` | IMPLEMENT 失败后的修复上下文 |
-| `.algocode/cache/worktrees/` | Baseline 和 Candidate Worktree |
-| `.algocode/cache/rollbacks/` | Apply 的 rollback manifest |
-
-旧版的根目录 `oracle/`、`benchmarks/`、`.algocode.yaml` 和 `.algocode.local.yaml` 只作为兼容读取路径保留。新项目应使用 `.algocode/`。
-
-## CLI 命令
-
-主要用户入口：
-
-| 命令 | 作用 |
-|---|---|
-| `algocode api` | 选择模型厂商、模型和 API Key |
-| `algocode model` | 切换用户全局默认模型 |
-| `algocode test` | 发送一条最小真实请求验证模型连接 |
-| `algocode doctor` | 检查本地运行环境 |
-| `algocode init` | 初始化项目并执行 Bootstrap |
-| `algocode optimize` | 运行完整优化流程 |
-| `algocode retry` | 基于历史记录重新从 PLAN 搜索 |
-| `algocode status` | 查看当前 Task 和下一步命令 |
-| `algocode review` | 查看候选、验证和决策证据 |
-| `algocode diff` | 查看候选 patch |
-| `algocode accept` | 接受已验证候选 |
-| `algocode apply` | 将已接受候选应用到工作区 |
-| `algocode rollback` | 回滚已应用候选 |
-| `algocode report` | 生成 JSON / Markdown 报告 |
-
-高级和自动化入口：
-
-```text
-algocode baseline
-algocode benchmark
-algocode correctness run
-algocode correctness replay
-algocode task create
-algocode task list
-algocode task show
-algocode candidate create
-algocode candidate freeze
-algocode candidate list
-algocode candidate show
-algocode experiment list
-algocode experiment show
-algocode gate run
-algocode eval run
-```
-
-大多数命令支持 `--json`、`--no-color`、`--quiet`、`--verbose` 和 `--data-dir`。
-
-JSON 输出使用统一 Envelope：
-
-```json
-{
-  "ok": true,
-  "command": "optimize",
-  "status": "completed",
-  "task_id": "task_...",
-  "candidate_id": "cand_...",
-  "experiment_id": "bench_...",
-  "artifacts": [],
-  "message": "",
-  "data": {}
-}
-```
-
-主要退出码：
-
-| 退出码 | 含义 |
-|---:|---|
-| 0 | 成功 |
-| 1 | Runtime、Provider、Decision、Eval 或 Doctor 失败 |
-| 2 | 参数、配置或初始化错误 |
-| 3 | Baseline 或 Correctness 配置错误 |
-| 4 | Correctness 失败 |
-| 5 | Benchmark 失败 |
-
-## 当前支持与限制
-
-当前已经支持：
-
-- Python 项目的完整 Bootstrap 和优化闭环；
-- C++ 确定性单入口项目的 Contract、Correctness 和 Benchmark；
-- Python Contract Test；
-- C++ candidate/reference 双编译差分；
-- Candidate Worktree；
-- Accept、Apply、Rollback；
-- 基于历史记录的 Retry；
-- 模型调用日志和优化记录；
-- OpenAI-compatible Chat Completions Provider；
-- process、Docker、WSL2 沙箱后端。
-
-当前限制：
-
-- 一个 Project 当前只有一个主语言；
-- 同目录同时存在 C++ 和 Python 时，C++ 优先；
-- 跨语言 Pipeline，例如 Python Encoder 加 C++ Decoder，当前不支持；
-- 多 translation unit 和复杂 CMake Contract Harness 仍需扩展；
-- Function Scope Benchmark 当前被拒绝；
-- Provider 协议当前主要面向 OpenAI-compatible Chat Completions；
-- Native Windows Sandbox 不是强隔离；
-- Report 目前更偏 Evidence Report，tradeoffs 和 limitations 仍可继续增强；
-- `experiment` 当前主要由 Benchmark Run 支撑，尚未成为完全独立的聚合。
-
-## 开发与测试
-
-```powershell
-.\.venv\Scripts\python -m pytest
-.\.venv\Scripts\python -m ruff check .
-.\.venv\Scripts\python -m algocode doctor
-.\.venv\Scripts\python -m algocode eval run smoke --provider fake --json
-.\.venv\Scripts\python -m algocode gate run --json
-```
-
-调试模型行为时，优先查看：
-
-```text
-.algocode/cache/model-logs/
-.algocode/cache/optimization-records/
-.algocode/cache/repair-memory/
-```
-
-## 项目架构与设计文档
-
-当前是模块化单体，主要分为：
-
-| 层 | 职责 |
-|---|---|
-| CLI | Typer 命令、参数、Human / JSON 输出 |
-| Bootstrap | 依赖组装和 Project Bootstrap |
-| Application | Task、Candidate、Benchmark、Decision、Apply、Report |
-| Domain | 实体、值对象、枚举、事件 |
-| Runtime | Phase Machine、Tool Loop、Retry、Logging |
-| Tools | Tool Registry、Policy、Approval、Sandbox |
-| Languages | Python / C++ 检测、构建和运行 |
-| Correctness | Correctness Spec 和执行 |
-| Benchmark | 采样、比较和环境 hash |
-| Workspace | Git Worktree、Patch、Apply 和 Rollback |
-| Storage | Event、Projection 和 Artifact |
-| Eval | Suite、A/B 和指标 |
-| Acceptance | Traceability 和 Release Gate |
-
-完整工程设计文档：
-
-- [Algocode 工程化总体设计文档](docs/design/09-algocode-engineering-design.md)
-
-P0 验收材料：
-
-- [P0 Report](docs/acceptance/P0/report.md)
-- [P0 Report JSON](docs/acceptance/P0/report.json)
-
-## Roadmap
-
-P1：
-
-- Candidate / Experiment 集中式状态机；
-- Experiment 独立聚合；
-- 多 translation unit 和 CMake C++ Contract Harness；
-- 更准确的 Tokenizer；
-- Artifact Retention Worker；
-- Responses API 和更多 Provider 协议；
-- 强 Sandbox 中的完整 Shell Tool；
-- Profiler Adapter；
-- Report 质量提升；
-- Worktree 生命周期管理。
-
-P2：
-
-- MCP；
-- Plugin Marketplace；
-- 远程 Worker；
-- Web UI / TUI；
-- Multi-Agent；
-- Pareto 多目标优化；
-- 组织级 Policy；
-- 集中式 Artifact 和 Audit；
-- GPU Profiler；
-- 分布式 Benchmark。
+- 复现步骤
+
+- 期望行为与实际行为
+
+- 相关日志或截图
+
+### 参与贡献
+
+欢迎提交 Pull Request！开发流程：
+
+1. Fork 本仓库
+
+2. 创建特性分支（`git checkout -b feature/xxx`）
+
+3. 安装开发依赖并确保测试通过：
+
+   ```bash
+   python -m venv .venv
+   .venv/bin/python -m pip install -e ".[dev]"
+   .venv/bin/python -m pytest
+   .venv/bin/python -m ruff check .
+   ```
+
+4. 提交改动并发起 PR
+
+### 交流讨论
+
+- **项目主页**：[github.com/acd2113/Algocode](https://github.com/acd2113/Algocode)
+
+- **问题反馈**：[GitHub Issues](https://github.com/acd2113/Algocode/issues)
+
+***
 
 ## License
 
