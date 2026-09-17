@@ -1,7 +1,7 @@
 # Algocode
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/acd2113/Algocode/main/docs/picture/algocode_icon.jpg" alt="Algocode" width="180">
+  <img src="https://raw.githubusercontent.com/acd2113/Algocode/main/docs/picture/algocode_icon.jpg" alt="Algocode" width="120">
 </p>
 <br>
 <p align="center">面向 C++ / Python 的可验证算法优化 Agent</p>
