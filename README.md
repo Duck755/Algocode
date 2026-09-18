@@ -318,19 +318,19 @@ algocode optimize --json
 
 执行 `algocode api` 选择模型厂商和 API Key：
 
-![配置 Provider](img_1.png)
+![配置 Provider](docs/picture/img_1.png)
 
 将需要优化的文件放入一个文件夹中：
 
-![项目目录](img.png)
+![项目目录](docs/picture/img.png)
 
 执行 `algocode init` 初始化项目、生成契约并建立基线：
 
-![初始化](img_2.png)
+![初始化](docs/picture/img_2.png)
 
 执行 `algocode optimize` 启动优化流程；`Status: completed` 表示流程完成，后续可执行 `review`、`diff`、`report`、`apply` 和 `rollback`：
 
-![优化结果](img_3.png)
+![优化结果](docs/picture/img_3.png)
 
 
 ### 方式一：完整 CLI 流程
