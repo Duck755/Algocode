@@ -59,4 +59,5 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./publish
           publish_branch: gh-pages
+          cname: algocode.chat
           force_orphan: true

@@ -1,6 +1,6 @@
 site_name: Algocode Docs
 site_description: Algocode 可验证算法优化 Agent 的用户与开发文档
-site_url: "https://duck755.github.io/Algocode/docs/"
+site_url: "https://algocode.chat/docs/"
 repo_url: https://github.com/Duck755/Algocode
 docs_dir: docs
 site_dir: site
