@@ -130,7 +130,7 @@ Algocode 适合优化“行为可验证”的代码。开始前请确认项目�
 ### 方式一：从 PyPI 安装
 
 ```bash
-python -m pip install algocode-agent
+pip install algocode-agent
 ```
 
 安装 VS Code 扩展：
@@ -144,7 +144,7 @@ algocode vscode install
 如果找不到 VS Code CLI：
 
 ```powershell
-algocode vscode install --code "D:\Microsoft VS Code\bin\code.cmd"
+algocode vscode install --code "{VScode路径}\bin\code.cmd"
 ```
 
 ### 方式二：从源码安装
