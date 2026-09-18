@@ -80,6 +80,29 @@ class ContractCompilerTests(unittest.TestCase):
             self.assertIn(".algocode/oracle/contract_test.cpp", objective)
             self.assertNotIn(".algocode/oracle/contract_test.py", objective)
 
+    def test_python_contract_test_uses_relative_algocode_filter(self) -> None:
+        contract = ProjectContract(
+            purpose="Optimize the primary module.",
+            performance_goal="Reduce wall time.",
+            contract_test_source=(
+                "from pathlib import Path\n"
+                "ROOT = Path(__file__).resolve().parents[2]\n"
+                "candidates = [p for p in ROOT.rglob('*.py') "
+                "if '.algocode' not in p.parts]\n"
+            ),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "test.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+            ContractCompiler(None).compile(root, contract, language="python")
+
+            generated = (root / ".algocode" / "oracle" / "contract_test.py").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn(".relative_to(ROOT).parts", generated)
+            self.assertNotIn("not in p.parts", generated)
+
 
 if __name__ == "__main__":
     unittest.main()

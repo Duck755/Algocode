@@ -64,13 +64,15 @@ class ReportFailureEvidenceTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertIsNone(failed.result_ref)
 
-            report, markdown, _ = await context.report_service.build(task.id)
+            report, markdown, refs = await context.report_service.build(task.id)
 
             self.assertIn("# Algocode Report", markdown)
             self.assertIn(
                 failed.id,
                 {item["runId"] for item in report["benchmarkEvidence"]},
             )
+            self.assertEqual(refs["root_markdown_path"], str(project_root / "report.md"))
+            self.assertTrue((project_root / "report.md").is_file())
 
 
 if __name__ == "__main__":

@@ -1,0 +1,76 @@
+site_name: Algocode Docs
+site_description: Algocode 可验证算法优化 Agent 的用户与开发文档
+site_url: ""
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  language: zh
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: 切换到深色模式
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: 切换到浅色模式
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - toc:
+      permalink: true
+
+nav:
+  - 首页: index.md
+  - Getting Started:
+      - 安装: getting-started/installation.md
+      - 快速开始: getting-started/quickstart.md
+      - 配置: getting-started/configuration.md
+      - 常见问题: getting-started/troubleshooting.md
+  - 命令手册:
+      - 命令总览: commands/index.md
+  - User Guide:
+      - 完整工作流: user-guide/workflow.md
+  - Concepts:
+      - 架构概览: concepts/architecture.md
+      - 证据模型: concepts/evidence-model.md
+      - 候选生命周期: concepts/candidate-lifecycle.md
+      - 存储与产物: concepts/storage-and-artifacts.md
+      - 策略、审批与沙箱: concepts/policy-approval-sandbox.md
+      - 模型 Provider: concepts/model-providers.md
+  - Reference:
+      - CLI 参考: reference/cli.md
+      - 配置参考: reference/config.md
+      - 项目目录: reference/project-layout.md
+      - Correctness Schema: reference/correctness-spec.md
+      - Benchmark Schema: reference/benchmark-spec.md
+      - Contract Schema: reference/contract-schema.md
+  - Development:
+      - 代码结构: development/code-structure.md
+      - 测试: development/testing.md
+      - 发布: development/release.md

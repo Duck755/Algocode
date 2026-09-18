@@ -47,6 +47,16 @@ class SandboxRunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.truncated)
         self.assertLessEqual(len(result.stdout), 5)
 
+    def test_auto_prefers_wsl2_before_native_on_windows(self) -> None:
+        with (
+            patch("algocode.sandbox.runner._docker_ready", return_value=False),
+            patch("algocode.sandbox.runner._wsl_ready", return_value=True),
+            patch("algocode.sandbox.runner.os.name", "nt"),
+        ):
+            runner = SandboxProcessRunner(SandboxConfig(backend="auto"))
+
+        self.assertEqual(runner.backend, "wsl2")
+
     def test_wsl_backend_probe_uses_flat_argument_tuple(self) -> None:
         with (
             patch(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import re
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -148,6 +149,7 @@ class ContractDiscoveryService:
                         "file itself, such as test.py, main.py, test.cpp, or main.cpp. "
                         "Those files are optimization targets, not protected artifacts.\n\n"
                         f"{contract_test_instruction}\n\n"
+                        f"{_contract_test_instruction_extra()}\n\n"
                         f"Language: {language}\n\nProject snapshot:\n{snapshot}\n\n"
                         f"JSON schema:\n{schema}"
                     ),
@@ -218,6 +220,7 @@ class ContractDiscoveryService:
                     role="user",
                     content=(
                         f"Repair the contractTestSource below. {repair_instruction} "
+                        f"{_contract_test_instruction_extra()} "
                         'Return JSON only with one field: {"contractTestSource": "..."}.\n\n'
                         "Repair only the test harness. Do not weaken, remove, skip, or "
                         "conditionally "
@@ -433,6 +436,17 @@ def _contract_test_instruction(language: str) -> str:
     )
 
 
+def _contract_test_instruction_extra() -> str:
+    return (
+        "Do not determine project files by checking whether '.algocode' appears in "
+        "an absolute path's parts. Candidate worktrees can themselves live under a "
+        "data directory named .algocode. When filtering files returned by "
+        "ROOT.rglob(), inspect the path relative to ROOT: "
+        "relative = path.relative_to(ROOT); if '.algocode' not in relative.parts. "
+        "Never use 'path.parts' directly for this check."
+    )
+
+
 def _repair_contract_test_instruction(language: str) -> str:
     if language == "cpp":
         return (
@@ -543,6 +557,11 @@ def _source_snapshot(root: Path) -> str:
 
 def _normalize_contract_test_source(source: str) -> str:
     normalized = source.strip()
+    normalized = re.sub(
+        r"([\"']\.algocode[\"']\s+not\s+in\s+)([A-Za-z_]\w*)\.parts",
+        r"\1\2.relative_to(ROOT).parts",
+        normalized,
+    )
     replacements = {
         'Path(__file__).resolve().parent / "test.py"': (
             'Path(__file__).resolve().parents[2] / "test.py"'

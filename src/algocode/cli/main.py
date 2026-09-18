@@ -24,6 +24,7 @@ from algocode.cli.commands.retry import retry_command
 from algocode.cli.commands.review import review_command
 from algocode.cli.commands.status import status_command
 from algocode.cli.commands.task import task_app
+from algocode.cli.commands.vscode import vscode_app
 
 app = typer.Typer(
     name="algocode",
@@ -55,6 +56,7 @@ app.command("apply", help="Apply an accepted candidate.")(apply_command)
 app.command("rollback", help="Roll back an applied candidate.")(rollback_command)
 app.command("report", help="Generate a task report.")(report_command)
 app.add_typer(eval_app)
+app.add_typer(vscode_app)
 
 
 @app.callback(invoke_without_command=True)

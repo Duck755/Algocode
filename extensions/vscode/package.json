@@ -1,0 +1,158 @@
+{
+  "name": "algocode-vscode",
+  "displayName": "Algocode",
+  "description": "VS Code integration for the Algocode algorithm optimization agent.",
+  "version": "0.1.1",
+  "publisher": "acd2113",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onCommand:algocode.optimizeFile",
+    "onCommand:algocode.diff",
+    "onCommand:algocode.review",
+    "onCommand:algocode.api",
+    "onCommand:algocode.test",
+    "onCommand:algocode.model",
+    "onCommand:algocode.init",
+    "onCommand:algocode.optimize",
+    "onCommand:algocode.status",
+    "onCommand:algocode.report",
+    "onCommand:algocode.apply",
+    "onCommand:algocode.rollback"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "algocode.optimizeFile",
+        "category": "Algocode",
+        "title": "优化 Optimize"
+      },
+      {
+        "command": "algocode.api",
+        "title": "Algocode: Configure Provider"
+      },
+      {
+        "command": "algocode.test",
+        "title": "Algocode: Test Model"
+      },
+      {
+        "command": "algocode.model",
+        "title": "Algocode: Select Model"
+      },
+      {
+        "command": "algocode.init",
+        "title": "Algocode: Init Project"
+      },
+      {
+        "command": "algocode.optimize",
+        "title": "Algocode: Optimize"
+      },
+      {
+        "command": "algocode.status",
+        "title": "Algocode: Show Status"
+      },
+      {
+        "command": "algocode.report",
+        "title": "Algocode: Open Report"
+      },
+      {
+        "command": "algocode.diff",
+        "category": "Algocode",
+        "title": "差异 Show Diff"
+      },
+      {
+        "command": "algocode.review",
+        "category": "Algocode",
+        "title": "检查 Review"
+      },
+      {
+        "command": "algocode.apply",
+        "category": "Algocode",
+        "title": "应用 Apply"
+      },
+      {
+        "command": "algocode.rollback",
+        "category": "Algocode",
+        "title": "回滚 Rollback"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "algocode.context",
+        "label": "Algocode"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "submenu": "algocode.context",
+          "when": "resourceExtname == .py || resourceExtname == .cpp || resourceExtname == .cc || resourceExtname == .cxx",
+          "group": "navigation@100"
+        }
+      ],
+      "editor/context": [
+        {
+          "submenu": "algocode.context",
+          "when": "resourceExtname == .py || resourceExtname == .cpp || resourceExtname == .cc || resourceExtname == .cxx",
+          "group": "navigation@100"
+        }
+      ],
+      "algocode.context": [
+        {
+          "command": "algocode.optimizeFile",
+          "group": "1_optimize@1"
+        },
+        {
+          "command": "algocode.rollback",
+          "group": "2_actions@1"
+        },
+        {
+          "command": "algocode.apply",
+          "group": "2_actions@2"
+        },
+        {
+          "command": "algocode.diff",
+          "group": "3_inspect@1"
+        },
+        {
+          "command": "algocode.review",
+          "group": "3_inspect@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Algocode",
+      "properties": {
+        "algocode.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Python executable used to run the Algocode CLI."
+        },
+        "algocode.usePythonModule": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run algocode through the selected Python interpreter as -m algocode."
+        },
+        "algocode.command": {
+          "type": "string",
+          "default": "algocode",
+          "description": "Algocode executable when usePythonModule is false."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.6.0"
+  }
+}

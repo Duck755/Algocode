@@ -51,6 +51,17 @@ class AnalysisCoverageTests(unittest.TestCase):
         self.assertEqual(report.language, "python")
         self.assertEqual(report.optimization_candidates[0].id, "dijkstra")
 
+    def test_analysis_report_normalizes_string_entrypoint_commands(self) -> None:
+        report = parse_analysis_report(
+            '{"summary": "Project analyzed", "entrypointCommands": '
+            '["python test.py", ["python", "-m", "test"]]}'
+        )
+
+        self.assertEqual(
+            report.entrypoint_commands,
+            (("python", "test.py"), ("python", "-m", "test")),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

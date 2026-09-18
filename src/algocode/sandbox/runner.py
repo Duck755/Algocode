@@ -148,8 +148,6 @@ class SandboxProcessRunner:
             return "wsl2" if _wsl_ready(self.config.wsl_distro, self.config.network) else "disabled"
         if _docker_ready(self.config.image):
             return "docker"
-        if os.name == "nt":
-            return "native"
         if _wsl_ready(self.config.wsl_distro, self.config.network):
             return "wsl2"
         return "native"

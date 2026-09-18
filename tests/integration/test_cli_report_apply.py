@@ -143,6 +143,9 @@ class CliReportApplyTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(report.exit_code, 0, report.output)
         self.assertEqual(json.loads(report.stdout)["data"]["taskId"], str(self.task.id))
+        root_report = self.project_root / "report.md"
+        self.assertTrue(root_report.is_file())
+        self.assertIn("# Algocode Report", root_report.read_text(encoding="utf-8"))
 
         applied = self.runner.invoke(
             app,

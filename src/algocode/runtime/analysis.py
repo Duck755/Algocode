@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import shlex
 from pathlib import Path, PurePosixPath
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 from algocode.languages.discovery import iter_files
@@ -76,6 +77,28 @@ class AnalysisReport(BaseModel):
     protected_files: tuple[str, ...] = ()
     optimization_candidates: tuple[OptimizationCandidate, ...] = ()
     unknowns: tuple[str, ...] = ()
+
+    @field_validator("entrypoint_commands", mode="before")
+    @classmethod
+    def _normalize_entrypoint_commands(cls, value):
+        if value is None:
+            return ()
+        if isinstance(value, str):
+            value = (value,)
+        if not isinstance(value, (list, tuple)):
+            return value
+        commands: list[tuple[str, ...]] = []
+        for command in value:
+            if isinstance(command, str):
+                parts = shlex.split(command, posix=False)
+                commands.append(
+                    tuple(part.strip("\"'") for part in parts if part.strip("\"'"))
+                )
+            elif isinstance(command, (list, tuple)):
+                commands.append(tuple(str(part) for part in command))
+            else:
+                commands.append((str(command),))
+        return tuple(commands)
 
 
 class ReadCoverage:
@@ -176,6 +199,8 @@ def analysis_summary_prompt(
         "ANALYZE file coverage is complete.\n"
         f"{coverage.summary()}\n"
         "Return only one JSON object matching this schema. Do not call tools. "
+        "entrypointCommands must contain command argument arrays, for example "
+        '[["python", "test.py"]]. Do not put a full command in one string.\n'
         "Do not use Markdown fences. Use only evidence obtained from the reads.\n"
         "For every file, record public APIs, return semantics, ordering and tie-breaking rules, "
         "state transitions, structural/count invariants, error behavior, configuration behavior, "

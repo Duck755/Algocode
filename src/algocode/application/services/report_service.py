@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
 from algocode.application.services.baseline_service import BaselineService
@@ -47,7 +48,7 @@ class ReportService:
         self._artifact_store = artifact_store
         self._redactor = redactor or SecretRedactor()
 
-    async def build(self, task_id: str) -> tuple[dict[str, object], str, dict[str, str]]:
+    async def build(self, task_id: str) -> tuple[dict[str, object], str, dict[str, object]]:
         task = await self._task_service.get_task(task_id)
         project = await self._project_service.get(task.project_id)
         baseline = await self._baseline_service.get_for_task(task.id)
@@ -194,6 +195,7 @@ class ReportService:
             metadata={"task_id": str(task.id), "report_id": report_id},
         )
         markdown = render_markdown(payload)
+        root_markdown_path = _write_root_markdown(project.root_path, markdown)
         markdown_ref = await self._artifact_store.put(
             markdown.encode("utf-8"),
             kind="task-report-markdown",
@@ -224,12 +226,41 @@ class ReportService:
             {
                 "json_ref": _ref_payload(json_ref),
                 "markdown_ref": _ref_payload(markdown_ref),
+                "root_markdown_path": str(root_markdown_path),
             },
         )
 
     async def _next_seq(self, aggregate_id: str) -> int:
         events = await self._event_store.read(aggregate_id)
         return events[-1].seq + 1 if events else 1
+
+
+def _write_root_markdown(project_root: str | Path, markdown: str) -> Path:
+    root = Path(project_root).resolve()
+    path = root / "report.md"
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(markdown, encoding="utf-8")
+    temporary.replace(path)
+    _ensure_local_exclude(root, "report.md")
+    return path
+
+
+def _ensure_local_exclude(project_root: Path, pattern: str) -> None:
+    git_dir = project_root / ".git"
+    if not git_dir.is_dir():
+        return
+    exclude_path = git_dir / "info" / "exclude"
+    exclude_path.parent.mkdir(parents=True, exist_ok=True)
+    existing = (
+        exclude_path.read_text(encoding="utf-8", errors="replace")
+        if exclude_path.exists()
+        else ""
+    )
+    lines = existing.splitlines()
+    if pattern in lines:
+        return
+    content = "\n".join([*lines, pattern]).rstrip() + "\n"
+    exclude_path.write_text(content, encoding="utf-8")
 
 
 def canonical_json(payload: dict[str, object]) -> bytes:

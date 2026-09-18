@@ -55,5 +55,6 @@ def report_command(
             f"Status: {payload['finalStatus']}",
             f"JSON artifact: {refs['json_ref']['uri']}",
             f"Markdown artifact: {refs['markdown_ref']['uri']}",
+            f"Markdown report: {refs['root_markdown_path']}",
         ),
     )
