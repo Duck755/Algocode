@@ -13,3 +13,6 @@ build/
 dist/
 dist-check/
 .algocode/
+site/
+.playwright-cli/
+output/
