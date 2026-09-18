@@ -1,12 +1,17 @@
 site_name: Algocode Docs
 site_description: Algocode 可验证算法优化 Agent 的用户与开发文档
-site_url: ""
+site_url: "https://duck755.github.io/Algocode/docs/"
+repo_url: https://github.com/Duck755/Algocode
 docs_dir: docs
 site_dir: site
 
 theme:
   name: material
   language: zh
+  favicon: picture/algocode_icon.png
+  logo: picture/algocode_icon.png
+  icon:
+    repo: fontawesome/brands/github
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -23,12 +28,19 @@ theme:
         icon: material/brightness-4
         name: 切换到浅色模式
   features:
-    - navigation.sections
     - navigation.top
+    - navigation.tabs
+    - navigation.tabs.sticky
     - search.suggest
     - search.highlight
     - content.code.copy
     - content.code.annotate
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/extra.js
 
 markdown_extensions:
   - admonition
@@ -47,30 +59,34 @@ markdown_extensions:
 
 nav:
   - 首页: index.md
-  - Getting Started:
+  - 快速上手:
       - 安装: getting-started/installation.md
       - 快速开始: getting-started/quickstart.md
       - 配置: getting-started/configuration.md
       - 常见问题: getting-started/troubleshooting.md
   - 命令手册:
       - 命令总览: commands/index.md
-  - User Guide:
+  - 用户指南:
+      - 简略工作流: user-guide/quick-workflow.md
       - 完整工作流: user-guide/workflow.md
-  - Concepts:
+  - 核心概念:
       - 架构概览: concepts/architecture.md
       - 证据模型: concepts/evidence-model.md
       - 候选生命周期: concepts/candidate-lifecycle.md
       - 存储与产物: concepts/storage-and-artifacts.md
       - 策略、审批与沙箱: concepts/policy-approval-sandbox.md
       - 模型 Provider: concepts/model-providers.md
-  - Reference:
+  - 参考文档:
       - CLI 参考: reference/cli.md
       - 配置参考: reference/config.md
       - 项目目录: reference/project-layout.md
       - Correctness Schema: reference/correctness-spec.md
       - Benchmark Schema: reference/benchmark-spec.md
       - Contract Schema: reference/contract-schema.md
-  - Development:
+  - 开发维护:
       - 代码结构: development/code-structure.md
       - 测试: development/testing.md
       - 发布: development/release.md
+  - 更新日志:
+      - v0.1.1: changelog/v0.1.1.md
+      - v0.1.0: changelog/v0.1.0.md

@@ -1,0 +1,5 @@
+[      54ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:8001/node_modules/.vite/deps/react-dom_client.js?v=5cbfbc66:22162
+[ 2777155ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:8001/@vite/client:963
+[ 2777169ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:8001/' failed: Error during WebSocket handshake: Unexpected response code: 200 @ http://127.0.0.1:8001/@vite/client:1034
+[ 2778462ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:8001/node_modules/.vite/deps/react-dom_client.js?v=cd9d6ef3:22162
+[ 2780856ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:8001/node_modules/.vite/deps/react-dom_client.js?v=cd9d6ef3:22162

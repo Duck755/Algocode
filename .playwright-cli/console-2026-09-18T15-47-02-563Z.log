@@ -1,0 +1,23 @@
+[     185ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/:1687
+[     889ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://api.github.com/repos/Duck755/Algocode/releases/latest:0
+[    5905ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/getting-started/installation/:1940
+[    6719ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/commands/:2253
+[    7260ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/user-guide/quick-workflow/:1812
+[    7872ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/concepts/architecture/:1858
+[    8788ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/reference/cli/:2927
+[    9216ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/development/code-structure/:2062
+[    9561ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/changelog/v0.1.1/:1812
+[   11430ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/:1687
+[   15975ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/getting-started/installation/:1940
+[  133874ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/commands/:2253
+[  134396ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/user-guide/quick-workflow/:1812
+[  134827ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/concepts/architecture/:1858
+[  135251ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/reference/cli/:2927
+[  135611ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/development/code-structure/:2062
+[  135984ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/changelog/v0.1.1/:1812
+[  136716ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/reference/cli/:2927
+[  139703ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/reference/config/:2607
+[  140791ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/reference/correctness-spec/:2121
+[  144283ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/reference/project-layout/:1955
+[  145452ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/reference/config/:2607
+[  145738ms] [LOG] Enabled live reload @ http://127.0.0.1:8000/reference/cli/:2927
