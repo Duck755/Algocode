@@ -11,13 +11,13 @@
 [![PyPI](https://img.shields.io/pypi/v/algocode-agent.svg)](https://pypi.org/project/algocode-agent/)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.90%2B-007ACC?logo=visualstudiocode)](https://code.visualstudio.com/)
 [![OpenAI Compatible](https://img.shields.io/badge/API-OpenAI_Compatible-green)](https://platform.openai.com/)
-[English](README_EN.md) 
----
+
 **Algocode 不是直接替你改代码的黑盒。**
 
 它会先建立行为契约，再在隔离 Worktree 中尝试优化，最后用 Correctness、Contract 和 Benchmark 三类证据决定候选是否值得应用。
 
-[使用守则](#使用守则优化前必看) · [快速开始](#快速开始) · [VS Code](#vs-code-扩展) · [工作流](#优化工作流) · [命令速查](#cli-命令速查)
+[English](README_EN.md) · [使用守则](#使用守则优化前必看) · [快速开始](#快速开始) · [VS Code](#vs-code-扩展) · [工作流](#优化工作流) · [命令速查](#cli-命令速查)
+
 
 </div>
 
