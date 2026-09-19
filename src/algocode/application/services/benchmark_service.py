@@ -26,7 +26,7 @@ from algocode.benchmark.types import (
     BenchmarkSample,
     BenchmarkSummary,
     ComparisonResult,
-    compare_summaries,
+    compare_sample_sets,
     summarize_samples,
 )
 from algocode.domain.errors import BenchmarkError, CorrectnessError, NotFoundError
@@ -211,14 +211,24 @@ class BenchmarkService:
                 if baseline_summary is None or candidate_summary is None:
                     raise BenchmarkError("benchmark did not produce measured samples")
                 all_valid = all(sample.valid for sample in samples if sample.phase == "measured")
-                comparison = compare_summaries(
+                baseline_values = tuple(
+                    sample.value
+                    for sample in baseline_samples
+                    if sample.phase == "measured" and sample.metric is spec.metric and sample.valid
+                )
+                candidate_values = tuple(
+                    sample.value
+                    for sample in candidate_samples
+                    if sample.phase == "measured" and sample.metric is spec.metric and sample.valid
+                )
+                comparison = compare_sample_sets(
                     baseline_run_id=run_id,
                     candidate_run_id=run_id,
                     baseline_id=baseline.id,
                     candidate_id=candidate_id,
                     comparison_key=comparison_key,
-                    baseline=baseline_summary,
-                    candidate=candidate_summary,
+                    baseline_values=baseline_values,
+                    candidate_values=candidate_values,
                     direction=spec.direction,
                     max_variation_percent=spec.max_variation_percent,
                 )
@@ -548,6 +558,7 @@ def _sample_payload(sample: BenchmarkSample) -> dict[str, object]:
         "target_id": sample.target_id,
         "phase": sample.phase,
         "index": sample.index,
+        "input_id": sample.input_id,
         "metric": sample.metric.value,
         "value": sample.value,
         "duration_seconds": sample.duration_seconds,
@@ -557,7 +568,7 @@ def _sample_payload(sample: BenchmarkSample) -> dict[str, object]:
     }
 
 
-def _summary_payload(summary: BenchmarkSummary | None) -> dict[str, float] | None:
+def _summary_payload(summary: BenchmarkSummary | None) -> dict[str, float | int] | None:
     if summary is None:
         return None
     return {
@@ -568,6 +579,11 @@ def _summary_payload(summary: BenchmarkSummary | None) -> dict[str, float] | Non
         "mean": summary.mean,
         "stddev": summary.stddev,
         "variation_percent": summary.variation_percent,
+        "ci_lower": summary.ci_lower,
+        "ci_upper": summary.ci_upper,
+        "sample_stddev": summary.sample_stddev,
+        "trimmed_median": summary.trimmed_median,
+        "trimmed_count": summary.trimmed_count,
     }
 
 
@@ -583,6 +599,10 @@ def _comparison_payload(comparison: ComparisonResult) -> dict[str, object]:
         "improvement_percent": comparison.improvement_percent,
         "valid": comparison.valid,
         "reason": comparison.reason,
+        "p_value": comparison.p_value,
+        "ci_lower": comparison.ci_lower,
+        "ci_upper": comparison.ci_upper,
+        "statistically_significant": comparison.statistically_significant,
     }
 
 

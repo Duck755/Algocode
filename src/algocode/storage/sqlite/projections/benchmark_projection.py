@@ -74,7 +74,7 @@ class BenchmarkProjection:
             for sample in payload["samples"]:
                 sample_id = (
                     f"{payload['run_id']}:{sample['target_kind']}:"
-                    f"{sample['phase']}:{sample['index']}"
+                    f"{sample['phase']}:{sample['index']}:{sample.get('input_id', '')}"
                 )
                 connection.execute(
                     """
@@ -85,12 +85,13 @@ class BenchmarkProjection:
                         target_id,
                         phase,
                         sample_index,
+                        input_id,
                         metric,
                         value,
                         valid,
                         message
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         sample_id,
@@ -99,6 +100,7 @@ class BenchmarkProjection:
                         sample["target_id"],
                         sample["phase"],
                         sample["index"],
+                        sample.get("input_id", ""),
                         sample["metric"],
                         sample["value"],
                         1 if sample["valid"] else 0,

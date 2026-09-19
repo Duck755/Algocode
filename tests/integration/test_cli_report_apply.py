@@ -26,7 +26,7 @@ class CliReportApplyTests(unittest.IsolatedAsyncioTestCase):
         )
         self.data_dir = self.root / "data"
         (self.project_root / ".algocode.yaml").write_text(
-            "acceptancePolicy:\n  minMedianImprovementPercent: -1000\n",
+            "acceptancePolicy:\n  minMedianImprovementPercent: -1000\n  requireStatisticallySignificant: false\n",
             encoding="utf-8",
         )
         self.context = build_context(project_root=self.project_root, data_dir=self.data_dir)

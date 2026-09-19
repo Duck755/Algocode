@@ -54,8 +54,27 @@ class AcceptancePolicyTests(unittest.TestCase):
                 "baseline_summary": {"variation_percent": 1.0},
                 "candidate_summary": {"variation_percent": 2.0},
             },
-            {"valid": True, "improvement_percent": 3.0},
+            {
+                "valid": True,
+                "improvement_percent": 3.0,
+                "statistically_significant": True,
+                "p_value": 0.01,
+            },
         )
+
+    def test_rejects_improvement_without_statistical_significance(self) -> None:
+        service = self._service(AcceptancePolicyConfig(min_median_improvement_percent=-1000.0))
+
+        with self.assertRaisesRegex(DecisionError, "not statistically significant"):
+            service._validate_acceptance_thresholds(
+                {},
+                {
+                    "valid": True,
+                    "improvement_percent": 10.0,
+                    "statistically_significant": False,
+                    "p_value": 0.8,
+                },
+            )
 
 
 if __name__ == "__main__":

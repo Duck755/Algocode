@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import sys
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -21,6 +22,7 @@ from algocode.domain.model import (
     BenchmarkStatus,
     CandidateStatus,
     CorrectnessStatus,
+    Language,
     TaskId,
     TaskPhase,
     TaskStatus,
@@ -35,6 +37,7 @@ from algocode.providers.types import (
     ModelUsage,
     ToolCall,
 )
+from algocode.profiling import collect_profile
 from algocode.runtime.analysis import (
     AnalysisReport,
     ReadCoverage,
@@ -620,8 +623,9 @@ class AgentRuntime:
                 summaries["current_request"] = (
                     "Analysis is complete. Do not inspect files or task state. Submit one "
                     "OptimizationPlan now with submit_optimization_plan. Use the AnalysisReport "
-                    "as the source of truth; report missing evidence as a risk or blocker "
-                    "instead of attempting more reads."
+                    "as the source of truth, including AnalysisReport.profile hotspots. "
+                    "Justify each step against a hotspot or verified evidence; report missing "
+                    "evidence as a risk or blocker instead of attempting more reads."
                 )
                 if active_optimization_history:
                     summaries["current_request"] += (
@@ -1425,6 +1429,8 @@ class AgentRuntime:
                 continue
             if self._protected_files:
                 report = report.model_copy(update={"protected_files": tuple(self._protected_files)})
+            profile_payload = await self._collect_profile_payload(workspace, report)
+            report = report.model_copy(update={"profile": profile_payload})
             report_payload = json.dumps(
                 report.model_dump(by_alias=True, mode="json"),
                 ensure_ascii=False,
@@ -1468,6 +1474,57 @@ class AgentRuntime:
             tool_calls_used,
             correctness_result_id,
         )
+
+    async def _collect_profile_payload(
+        self,
+        workspace: Path,
+        report: AnalysisReport,
+    ) -> dict[str, object]:
+        try:
+            detected = await self._language_registry.detect(workspace)
+            language = detected.primary_language or Language.PYTHON
+            commands = report.entrypoint_commands or await self._infer_profile_commands(
+                workspace,
+                language,
+            )
+            profile = await collect_profile(
+                workspace=workspace,
+                language=language,
+                commands=commands,
+                sandbox_runner=self._language_registry.sandbox_runner,
+                timeout_seconds=self._build_profile.timeout_seconds,
+            )
+        except Exception as exc:
+            return {
+                "available": False,
+                "tool": "profiler",
+                "error": str(exc),
+                "text": f"Profiler unavailable: {exc}",
+            }
+        payload = profile.payload()
+        payload["text"] = self._redactor.redact_text(str(payload.get("text", "")))
+        return payload
+
+    async def _infer_profile_commands(
+        self,
+        workspace: Path,
+        language: Language,
+    ) -> tuple[tuple[str, ...], ...]:
+        if language is Language.PYTHON:
+            main_path = workspace / "main.py"
+            if main_path.exists():
+                return ((sys.executable, str(main_path)),)
+            sources = sorted(
+                path
+                for path in workspace.rglob("*.py")
+                if path.is_file() and ".algocode" not in path.parts
+            )
+            return ((sys.executable, str(sources[0])),) if sources else ()
+        if language is Language.CPP:
+            adapter = self._language_registry.adapter_for(Language.CPP)
+            build_result = await adapter.build(workspace, self._build_profile)
+            return (build_result.run_command,) if build_result.run_command else ()
+        return ()
 
     async def _restore_analysis_report(self, task_id: str) -> None:
         events = await self._event_store.read(task_id)
@@ -1846,6 +1903,7 @@ class AgentRuntime:
                             candidate.model_dump(by_alias=True)
                             for candidate in report.optimization_candidates
                         ],
+                        "profile_available": report.profile.get("available") is True,
                         "analysis_ref": _artifact_payload(ref),
                     },
                     artifact_refs=(ref,),

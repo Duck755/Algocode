@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from algocode.benchmark.spec import (
+    BenchmarkInputCase,
     BenchmarkSpec,
     compute_benchmark_spec_hash,
     compute_comparison_key,
@@ -57,6 +58,28 @@ repeats: 5
             path.write_text("- invalid\n", encoding="utf-8")
             with self.assertRaises(ConfigError):
                 load_benchmark_spec(path)
+
+    def test_multi_input_requires_unique_ids(self) -> None:
+        with self.assertRaises(ValueError):
+            BenchmarkSpec(
+                inputs=(
+                    BenchmarkInputCase(id="same", input="a"),
+                    BenchmarkInputCase(id="same", input="b"),
+                ),
+            )
+
+    def test_single_input_and_matrix_are_mutually_exclusive(self) -> None:
+        with self.assertRaises(ValueError):
+            BenchmarkSpec(
+                input="a",
+                inputs=(BenchmarkInputCase(id="case", input="b"),),
+            )
+
+    def test_multi_input_changes_input_hash(self) -> None:
+        single = BenchmarkSpec(input="a")
+        multi = BenchmarkSpec(inputs=(BenchmarkInputCase(id="case", input="a"),))
+        self.assertNotEqual(compute_input_hash(single), compute_input_hash(multi))
+        self.assertEqual(multi.effective_inputs()[0].id, "case")
 
 
 if __name__ == "__main__":

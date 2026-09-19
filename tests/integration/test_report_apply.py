@@ -21,7 +21,7 @@ class ReportAcceptApplyTests(unittest.IsolatedAsyncioTestCase):
             {"main.py": "import time\ntime.sleep(0.02)\nprint('hello')\n"},
         )
         (self.project_root / ".algocode.yaml").write_text(
-            "acceptancePolicy:\n  minMedianImprovementPercent: -1000\n",
+            "acceptancePolicy:\n  minMedianImprovementPercent: -1000\n  requireStatisticallySignificant: false\n",
             encoding="utf-8",
         )
         self.context = build_context(

@@ -153,6 +153,16 @@ class DecisionService:
                         raise DecisionError(
                             f"{key} variation exceeds acceptance threshold: {variation:.6f}%"
                         )
+        if self._acceptance_policy.require_statistically_significant:
+            statistically_significant = comparison.get("statistically_significant")
+            if statistically_significant is False:
+                p_value = comparison.get("p_value")
+                detail = f" p_value={p_value:.4f}" if isinstance(p_value, (int, float)) else ""
+                raise DecisionError(
+                    f"candidate improvement is not statistically significant{detail}"
+                )
+            if statistically_significant is None and "p_value" in comparison:
+                raise DecisionError("candidate comparison has no statistical significance evidence")
         for metric, threshold in (
             ("peak_memory", self._acceptance_policy.max_peak_memory_regression_percent),
             ("compile_time", self._acceptance_policy.max_compile_time_regression_percent),

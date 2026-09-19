@@ -38,7 +38,7 @@ class FullE2ETests(unittest.IsolatedAsyncioTestCase):
                 },
             )
             (project_root / ".algocode.yaml").write_text(
-                "acceptancePolicy:\n  minMedianImprovementPercent: -1000\n",
+                "acceptancePolicy:\n  minMedianImprovementPercent: -1000\n  requireStatisticallySignificant: false\n",
                 encoding="utf-8",
             )
             (project_root / ".git" / "info" / "exclude").write_text(
@@ -163,7 +163,7 @@ class FullE2ETests(unittest.IsolatedAsyncioTestCase):
                 },
             )
             (project_root / ".algocode.yaml").write_text(
-                "acceptancePolicy:\n  minMedianImprovementPercent: -1000\n",
+                "acceptancePolicy:\n  minMedianImprovementPercent: -1000\n  requireStatisticallySignificant: false\n",
                 encoding="utf-8",
             )
             context = build_context(project_root=project_root, data_dir=root / "data")

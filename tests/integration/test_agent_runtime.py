@@ -628,6 +628,13 @@ class AgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.status, TaskStatus.COMPLETED.value)
         events = await self.context.event_store.read(str(self.task.id))
         self.assertIn(EventType.ANALYSIS_COMPLETED, [event.type for event in events])
+        analysis_events = [
+            event
+            for event in events
+            if event.type is EventType.ANALYSIS_COMPLETED
+        ]
+        self.assertEqual(len(analysis_events), 1)
+        self.assertTrue(analysis_events[0].payload.get("profile_available"))
         reads = [
             event
             for event in events

@@ -74,6 +74,7 @@ class AnalysisReport(BaseModel):
     files: tuple[AnalysisFile, ...] = ()
     correctness: dict[str, object] = Field(default_factory=dict)
     benchmark: dict[str, object] = Field(default_factory=dict)
+    profile: dict[str, object] = Field(default_factory=dict)
     protected_files: tuple[str, ...] = ()
     optimization_candidates: tuple[OptimizationCandidate, ...] = ()
     unknowns: tuple[str, ...] = ()
@@ -208,5 +209,6 @@ def analysis_summary_prompt(
         "affected public APIs and contract obligations, and state how its effect will be verified. "
         "Put any behavior that could not be verified from the reads in unknowns; do not invent "
         "evidence or silently assume an invariant.\n"
+        "Leave profile as an empty object; the runtime populates it with verified profiler hotspots.\n"
         f"{retry}\nJSON schema:\n{schema}"
     )

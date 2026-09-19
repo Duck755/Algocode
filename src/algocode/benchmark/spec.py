@@ -13,6 +13,15 @@ from algocode.domain.errors import ConfigError
 from algocode.domain.model import BenchmarkMetric, BenchmarkScope
 
 
+class BenchmarkInputCase(BaseModel):
+    """One named input in a benchmark input matrix."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str = Field(min_length=1)
+    input: str = ""
+
+
 class BenchmarkSpec(BaseModel):
     """Frozen benchmark contract shared by all language adapters."""
 
@@ -23,8 +32,9 @@ class BenchmarkSpec(BaseModel):
     run_command: tuple[str, ...] = ()
     source_root: str = "."
     input: str = ""
-    warmup: int = Field(default=2, ge=0)
-    repeats: int = Field(default=5, gt=0)
+    inputs: tuple[BenchmarkInputCase, ...] = ()
+    warmup: int = Field(default=5, ge=0)
+    repeats: int = Field(default=15, gt=0)
     timeout_seconds: int = Field(default=30, gt=0)
     metric: BenchmarkMetric = BenchmarkMetric.WALL_TIME
     direction: str = "minimize"
@@ -37,7 +47,17 @@ class BenchmarkSpec(BaseModel):
             raise ValueError("function benchmark scope is not enabled in M4")
         if self.direction not in {"minimize", "maximize"}:
             raise ValueError("direction must be minimize or maximize")
+        if self.input and self.inputs:
+            raise ValueError("use either input or inputs, not both")
+        input_ids = [case.id for case in self.inputs]
+        if len(input_ids) != len(set(input_ids)):
+            raise ValueError("benchmark input ids must be unique")
         return self
+
+    def effective_inputs(self) -> tuple[BenchmarkInputCase, ...]:
+        if self.inputs:
+            return self.inputs
+        return (BenchmarkInputCase(id="default", input=self.input),)
 
 
 def load_benchmark_spec(path: str | Path) -> BenchmarkSpec:
@@ -55,7 +75,11 @@ def load_benchmark_spec(path: str | Path) -> BenchmarkSpec:
 
 
 def compute_benchmark_spec_hash(spec: BenchmarkSpec) -> str:
-    payload = spec.model_dump(mode="json")
+    payload = spec.model_dump(mode="json", exclude={"inputs"})
+    if spec.inputs:
+        payload["inputs"] = [
+            {"id": case.id, "input": case.input} for case in spec.inputs
+        ]
     canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -81,5 +105,9 @@ def compute_input_hash(spec: BenchmarkSpec) -> str:
         "input": spec.input,
         "scope": spec.scope.value,
     }
+    if spec.inputs:
+        payload["input_cases"] = [
+            {"id": case.id, "input": case.input} for case in spec.inputs
+        ]
     canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

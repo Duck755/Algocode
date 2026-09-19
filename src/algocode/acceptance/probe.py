@@ -61,7 +61,7 @@ async def _run_probe(root: Path) -> ProbeMetrics:
         {"main.py": "import time\ntime.sleep(0.05)\nprint('hello')\n"},
     )
     (project_root / ".algocode.yaml").write_text(
-        "acceptancePolicy:\n  minMedianImprovementPercent: -1000\n",
+        "acceptancePolicy:\n  minMedianImprovementPercent: -1000\n  requireStatisticallySignificant: false\n",
         encoding="utf-8",
     )
     context = build_context(project_root=project_root, data_dir=root / "data")

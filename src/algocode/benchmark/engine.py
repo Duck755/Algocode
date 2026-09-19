@@ -6,6 +6,7 @@ from pathlib import Path
 
 from algocode.benchmark.environment import compute_environment_hash
 from algocode.benchmark.spec import (
+    BenchmarkInputCase,
     BenchmarkSpec,
     compute_benchmark_spec_hash,
     compute_comparison_key,
@@ -13,7 +14,7 @@ from algocode.benchmark.spec import (
 )
 from algocode.benchmark.types import BenchmarkResult, BenchmarkSample, summarize_samples
 from algocode.domain.model import BenchmarkMetric, BenchmarkScope
-from algocode.sandbox.runner import SandboxProcessRunner
+from algocode.sandbox.runner import SandboxProcessResult, SandboxProcessRunner
 
 
 async def collect_target_samples(
@@ -27,30 +28,33 @@ async def collect_target_samples(
     """Collect warmup and measured samples for one target."""
 
     samples: list[BenchmarkSample] = []
-    for index in range(spec.warmup):
-        samples.append(
-            await run_sample(
-                workspace,
-                spec,
-                target_kind=target_kind,
-                target_id=target_id,
-                phase="warmup",
-                index=index,
-                sandbox_runner=sandbox_runner,
+    for input_case in spec.effective_inputs():
+        for index in range(spec.warmup):
+            samples.append(
+                await run_sample(
+                    workspace,
+                    spec,
+                    target_kind=target_kind,
+                    target_id=target_id,
+                    phase="warmup",
+                    index=index,
+                    input_case=input_case,
+                    sandbox_runner=sandbox_runner,
+                )
             )
-        )
-    for index in range(spec.repeats):
-        samples.append(
-            await run_sample(
-                workspace,
-                spec,
-                target_kind=target_kind,
-                target_id=target_id,
-                phase="measured",
-                index=index,
-                sandbox_runner=sandbox_runner,
+        for index in range(spec.repeats):
+            samples.append(
+                await run_sample(
+                    workspace,
+                    spec,
+                    target_kind=target_kind,
+                    target_id=target_id,
+                    phase="measured",
+                    index=index,
+                    input_case=input_case,
+                    sandbox_runner=sandbox_runner,
+                )
             )
-        )
     return tuple(samples)
 
 
@@ -109,49 +113,53 @@ async def collect_interleaved_samples(
     """Collect warmups then alternate Baseline/Candidate measurements."""
 
     samples: list[BenchmarkSample] = []
-    for index in range(baseline_spec.warmup):
-        samples.append(
-            await run_sample(
-                baseline_workspace,
-                baseline_spec,
-                target_kind="baseline",
-                target_id=baseline_id,
-                phase="warmup",
-                index=index,
-                sandbox_runner=sandbox_runner,
-            )
-        )
-        samples.append(
-            await run_sample(
-                candidate_workspace,
-                candidate_spec,
-                target_kind="candidate",
-                target_id=candidate_id,
-                phase="warmup",
-                index=index,
-                sandbox_runner=sandbox_runner,
-            )
-        )
-    for index in range(baseline_spec.repeats):
-        order = (
-            ("baseline", baseline_workspace, baseline_id),
-            ("candidate", candidate_workspace, candidate_id),
-        )
-        if index % 2:
-            order = tuple(reversed(order))
-        for target_kind, workspace, target_id in order:
-            target_spec = baseline_spec if target_kind == "baseline" else candidate_spec
+    for input_case in baseline_spec.effective_inputs():
+        for index in range(baseline_spec.warmup):
             samples.append(
                 await run_sample(
-                    workspace,
-                    target_spec,
-                    target_kind=target_kind,
-                    target_id=target_id,
-                    phase="measured",
+                    baseline_workspace,
+                    baseline_spec,
+                    target_kind="baseline",
+                    target_id=baseline_id,
+                    phase="warmup",
                     index=index,
+                    input_case=input_case,
                     sandbox_runner=sandbox_runner,
                 )
             )
+            samples.append(
+                await run_sample(
+                    candidate_workspace,
+                    candidate_spec,
+                    target_kind="candidate",
+                    target_id=candidate_id,
+                    phase="warmup",
+                    index=index,
+                    input_case=input_case,
+                    sandbox_runner=sandbox_runner,
+                )
+            )
+        for index in range(baseline_spec.repeats):
+            order = (
+                ("baseline", baseline_workspace, baseline_id),
+                ("candidate", candidate_workspace, candidate_id),
+            )
+            if index % 2:
+                order = tuple(reversed(order))
+            for target_kind, workspace, target_id in order:
+                target_spec = baseline_spec if target_kind == "baseline" else candidate_spec
+                samples.append(
+                    await run_sample(
+                        workspace,
+                        target_spec,
+                        target_kind=target_kind,
+                        target_id=target_id,
+                        phase="measured",
+                        index=index,
+                        input_case=input_case,
+                        sandbox_runner=sandbox_runner,
+                    )
+                )
     return tuple(samples)
 
 
@@ -163,29 +171,21 @@ async def run_sample(
     target_id: str,
     phase: str,
     index: int,
+    input_case: BenchmarkInputCase | None = None,
     sandbox_runner: SandboxProcessRunner | None = None,
 ) -> BenchmarkSample:
-    if spec.metric is not BenchmarkMetric.WALL_TIME:
-        return BenchmarkSample(
-            target_kind=target_kind,
-            target_id=target_id,
-            phase=phase,
-            index=index,
-            metric=spec.metric,
-            value=0.0,
-            duration_seconds=0.0,
-            exit_code=1,
-            valid=False,
-            message=f"{spec.metric.value} is not implemented in M4",
-        )
     command = tuple(token.format(workspace=workspace) for token in spec.run_command)
-    input_bytes = spec.input.encode() if spec.scope is BenchmarkScope.STDIN else b""
+    input_id = input_case.id if input_case is not None else "default"
+    input_bytes = (
+        input_case.input.encode() if spec.scope is BenchmarkScope.STDIN and input_case else b""
+    )
     runner = sandbox_runner or SandboxProcessRunner()
     result = await runner.run(
         command,
         cwd=workspace,
         timeout_seconds=spec.timeout_seconds,
         input_bytes=input_bytes,
+        measure_resources=spec.metric is not BenchmarkMetric.WALL_TIME,
     )
     if result.start_failed or result.timed_out or result.exit_code != 0:
         return BenchmarkSample(
@@ -199,6 +199,22 @@ async def run_sample(
             exit_code=result.exit_code,
             valid=False,
             message=result.stderr.decode(errors="replace"),
+            input_id=input_id,
+        )
+    value = _metric_value(spec.metric, result)
+    if value is None:
+        return BenchmarkSample(
+            target_kind=target_kind,
+            target_id=target_id,
+            phase=phase,
+            index=index,
+            metric=spec.metric,
+            value=0.0,
+            duration_seconds=result.duration_seconds,
+            exit_code=result.exit_code,
+            valid=False,
+            message=f"{spec.metric.value} is unavailable on the {result.backend} sandbox backend",
+            input_id=input_id,
         )
     return BenchmarkSample(
         target_kind=target_kind,
@@ -206,9 +222,22 @@ async def run_sample(
         phase=phase,
         index=index,
         metric=spec.metric,
-        value=result.duration_seconds,
+        value=value,
         duration_seconds=result.duration_seconds,
         exit_code=result.exit_code,
         valid=True,
         message="",
+        input_id=input_id,
     )
+
+
+def _metric_value(metric: BenchmarkMetric, result: SandboxProcessResult) -> float | None:
+    if metric is BenchmarkMetric.WALL_TIME:
+        return result.duration_seconds
+    if metric is BenchmarkMetric.CPU_TIME:
+        return result.cpu_time_seconds
+    if metric is BenchmarkMetric.PEAK_MEMORY:
+        return float(result.peak_memory_bytes) if result.peak_memory_bytes is not None else None
+    if metric is BenchmarkMetric.PAGE_FAULTS:
+        return float(result.page_faults) if result.page_faults is not None else None
+    return None

@@ -269,6 +269,15 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=9,
+        statements=(
+            """
+            ALTER TABLE benchmark_samples
+            ADD COLUMN input_id TEXT NOT NULL DEFAULT ''
+            """,
+        ),
+    ),
 )
 
 

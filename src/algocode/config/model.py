@@ -110,8 +110,8 @@ class BenchmarkDefaults(BaseModel):
     model_config = CONFIG_DICT
 
     method: str = "process"
-    warmup: int = Field(default=2, ge=0)
-    repeats: int = Field(default=5, gt=0)
+    warmup: int = Field(default=5, ge=0)
+    repeats: int = Field(default=15, gt=0)
     primary_metric: str = "wall_time"
     direction: str = "minimize"
 
@@ -120,10 +120,11 @@ class AcceptancePolicyConfig(BaseModel):
     model_config = CONFIG_DICT
 
     require_correctness: bool = True
-    min_median_improvement_percent: float = 0.0
+    require_statistically_significant: bool = True
+    min_median_improvement_percent: float = 2.0
     max_peak_memory_regression_percent: float | None = Field(default=None, ge=0)
     max_compile_time_regression_percent: float | None = Field(default=None, ge=0)
-    max_variation_percent: float | None = Field(default=None, gt=0)
+    max_variation_percent: float | None = Field(default=5.0, gt=0)
 
 
 class PolicyRuleConfig(BaseModel):
