@@ -263,11 +263,26 @@ def _default_commands(workspace: Path, source_root: Path) -> tuple[tuple[str, ..
         return ()
     source = next(
         (candidate for candidate in sources if candidate.stem == "main"),
-        sources[0],
+        None,
     )
     executable = "algocode_baseline.exe" if os.name == "nt" else "algocode_baseline"
     output = _build_dir(workspace) / executable
-    return ((compiler, "-std=c++17", "-O2", "-pthread", str(source), "-o", str(output)),)
+    selected_sources = tuple(
+        (source, *[candidate for candidate in sources if candidate != source])
+        if source is not None
+        else sources
+    )
+    return (
+        (
+            compiler,
+            "-std=c++17",
+            "-O2",
+            "-pthread",
+            *(str(candidate) for candidate in selected_sources),
+            "-o",
+            str(output),
+        ),
+    )
 
 
 def _parse_diagnostics(stderr: bytes) -> tuple[Diagnostic, ...]:

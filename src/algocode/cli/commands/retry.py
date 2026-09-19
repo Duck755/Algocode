@@ -13,7 +13,13 @@ import typer
 from algocode.application.services.project_state import find_current_task
 from algocode.cli.commands.optimize import DataDirOption, optimize_command
 from algocode.cli.context import build_task_context, resolve_data_dir
-from algocode.cli.output import JsonOption, NoColorOption, QuietOption, VerboseOption
+from algocode.cli.output import (
+    JsonOption,
+    NoColorOption,
+    ProgressOption,
+    QuietOption,
+    VerboseOption,
+)
 from algocode.domain.events import EventEnvelope, EventType
 from algocode.runtime.optimization_record import OptimizationRecordStore
 
@@ -62,6 +68,7 @@ def retry_command(
         typer.Option("--max-tool-calls", min=1, help="Maximum tool calls per phase."),
     ] = None,
     data_dir: DataDirOption = None,
+    progress: ProgressOption = None,
     json_output: JsonOption = False,
     no_color: NoColorOption = False,
     quiet: QuietOption = False,
@@ -99,6 +106,7 @@ def retry_command(
         max_tool_calls=max_tool_calls,
         stop_after="report",
         data_dir=data_dir,
+        progress=progress,
         json_output=json_output,
         no_color=no_color,
         quiet=quiet,

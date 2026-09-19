@@ -1,0 +1,220 @@
+version: 1
+requirements:
+  - id: P0-0.1
+    title: Package, CLI, SQLite, Event Log, Projection and Recovery
+    implementation:
+      - pyproject.toml
+      - src/algocode/bootstrap.py
+      - src/algocode/storage/sqlite
+      - src/algocode/storage/events
+    tests:
+      - tests/contract/test_event_store.py
+      - tests/unit/test_project_service.py
+      - tests/unit/test_task_service.py
+    evidence: [unit, contract, integration]
+  - id: P0-0.2
+    title: Git Worktree, Baseline and Workspace Isolation
+    implementation:
+      - src/algocode/workspace
+      - src/algocode/application/services/baseline_service.py
+      - src/algocode/application/services/candidate_service.py
+    tests:
+      - tests/integration/test_baseline_service.py
+      - tests/integration/test_git_workspace.py
+    evidence: [unit, integration]
+  - id: P0-0.3
+    title: C++ and Python Build, Correctness and Benchmark
+    implementation:
+      - src/algocode/languages
+      - src/algocode/correctness
+      - src/algocode/benchmark
+    tests:
+      - tests/unit/languages/test_adapters.py
+      - tests/unit/correctness
+      - tests/integration/test_benchmark_service.py
+    evidence: [unit, integration, e2e]
+  - id: P0-0.4
+    title: Agent Phase Machine, Tool Loop and Provider Adapter
+    implementation:
+      - src/algocode/runtime/agent.py
+      - src/algocode/providers
+      - src/algocode/tools
+    tests:
+      - tests/integration/test_agent_runtime.py
+      - tests/unit/providers/test_openai_compatible.py
+      - tests/integration/test_tool_actions.py
+    evidence: [unit, integration, e2e]
+  - id: P0-0.5
+    title: Candidate, Decision, Report, Apply and Rollback
+    implementation:
+      - src/algocode/application/services/decision_service.py
+      - src/algocode/application/services/report_service.py
+      - src/algocode/application/services/apply_service.py
+    tests:
+      - tests/integration/test_report_apply.py
+      - tests/integration/test_cli_report_apply.py
+    evidence: [integration, e2e]
+  - id: P0-0.6
+    title: Built-in Eval Suites and A/B Comparison
+    implementation:
+      - src/algocode/eval
+    tests:
+      - tests/integration/test_eval_service.py
+      - tests/integration/test_cli_eval.py
+    evidence: [integration, eval]
+  - id: P0-1.1
+    title: Policy Layers, Rules, Hash and Protected Files
+    implementation:
+      - src/algocode/policy
+    tests:
+      - tests/unit/policy/test_engine.py
+    evidence: [unit, integration]
+  - id: P0-1.2
+    title: Approval once-task-project-unavailable
+    implementation:
+      - src/algocode/approval
+      - src/algocode/storage/sqlite/approval_store.py
+    tests:
+      - tests/unit/approval/test_service.py
+    evidence: [unit, integration]
+  - id: P0-1.3
+    title: Docker, WSL2 and Local Process Sandbox
+    implementation:
+      - src/algocode/sandbox
+      - docker/sandbox.Dockerfile
+    tests:
+      - tests/unit/sandbox/test_local.py
+      - tests/unit/sandbox/test_runner.py
+      - tests/integration/test_docker_sandbox.py
+    evidence: [unit, integration]
+  - id: P0-1.4
+    title: Policy, Approval, Sandbox and Tool Execution Chain
+    implementation:
+      - src/algocode/tools/registry.py
+    tests:
+      - tests/integration/test_tool_security.py
+    evidence: [integration]
+  - id: P0-2.1
+    title: Context Fragments, Trust and Deterministic Assembly
+    implementation:
+      - src/algocode/context
+    tests:
+      - tests/unit/context/test_builder.py
+    evidence: [unit]
+  - id: P0-2.2
+    title: Token Budget, Compaction and Fact Ledger
+    implementation:
+      - src/algocode/context/estimator.py
+      - src/algocode/context/facts.py
+    tests:
+      - tests/unit/context/test_builder.py
+    evidence: [unit]
+  - id: P0-2.3
+    title: Phase Prerequisites and Evidence Gates
+    implementation:
+      - src/algocode/runtime/gates.py
+    tests:
+      - tests/unit/runtime/test_gates.py
+    evidence: [unit, integration]
+  - id: P0-2.4
+    title: Task Lock, Resume and No Progress Detection
+    implementation:
+      - src/algocode/runtime/task_lock.py
+      - src/algocode/runtime/agent.py
+    tests:
+      - tests/unit/runtime/test_task_lock.py
+      - tests/integration/test_agent_runtime.py
+    evidence: [unit, integration]
+  - id: P0-3.1
+    title: P0 CLI Command Shape and Uniform Output
+    implementation:
+      - src/algocode/cli
+    tests:
+      - tests/integration/test_cli_contract.py
+      - tests/integration/test_cli_experiment.py
+    evidence: [integration]
+  - id: P0-3.2
+    title: Resolved Config and Acceptance Policy
+    implementation:
+      - src/algocode/config
+      - src/algocode/application/services/decision_service.py
+    tests:
+      - tests/unit/config/test_loader.py
+      - tests/unit/application/test_decision_policy.py
+    evidence: [unit, integration]
+  - id: P0-3.3
+    title: Resource Provider and read_resource Tool
+    implementation:
+      - src/algocode/resources
+      - src/algocode/tools/builtins/filesystem.py
+    tests:
+      - tests/unit/resources/test_local.py
+    evidence: [unit, integration]
+  - id: P0-3.4
+    title: Secret Redaction Across Persistence and Prompt Boundaries
+    implementation:
+      - src/algocode/security
+    tests:
+      - tests/integration/test_secret_redaction.py
+    evidence: [integration]
+  - id: P0-4.1
+    title: Agent Candidate Generation and Phase-Scoped Tools
+    implementation:
+      - src/algocode/tools/builtins/actions.py
+      - src/algocode/runtime/agent.py
+      - src/algocode/runtime/planning.py
+    tests:
+      - tests/integration/test_agent_runtime.py
+      - tests/integration/test_tool_actions.py
+      - tests/unit/runtime/test_planning.py
+    evidence: [integration, e2e]
+  - id: P0-4.2
+    title: Real Provider Python Candidate E2E
+    implementation:
+      - src/algocode/providers/openai_compatible.py
+      - src/algocode/eval/harness.py
+    tests:
+      - tests/integration/test_e2e_full.py
+      - tests/integration/test_report_failure_evidence.py
+    evidence: [e2e, eval]
+  - id: P0-4.3
+    title: C++ Candidate E2E
+    implementation:
+      - src/algocode/languages/cpp.py
+    tests:
+      - tests/integration/test_e2e_full.py
+    evidence: [e2e]
+  - id: P0-4.4
+    title: Provider Recovery, Compaction and Terminal Events
+    implementation:
+      - src/algocode/providers/openai_compatible.py
+      - src/algocode/runtime/agent.py
+    tests:
+      - tests/unit/providers/test_openai_compatible.py
+      - tests/integration/test_agent_runtime.py
+    evidence: [unit, integration]
+  - id: P0-4.5
+    title: Evidence Consistency, Replay and Event Sequence
+    implementation:
+      - src/algocode/application/services/report_service.py
+      - src/algocode/storage/events/sqlite_event_store.py
+    tests:
+      - tests/integration/test_e2e_full.py
+    evidence: [e2e, eval]
+  - id: P0-5.1
+    title: P0 Requirement Traceability Matrix and Acceptance Report
+    implementation:
+      - src/algocode/acceptance
+      - docs/acceptance/p0-requirements.yaml
+    tests:
+      - tests/unit/acceptance/test_matrix.py
+      - tests/integration/test_acceptance_gate.py
+    evidence: [unit, integration]
+  - id: P0-5.2
+    title: Repeatable Release Gate and Zero-Failure Counts
+    implementation:
+      - src/algocode/acceptance/service.py
+      - src/algocode/cli/commands/gate.py
+    tests:
+      - tests/integration/test_acceptance_gate.py
+    evidence: [integration]

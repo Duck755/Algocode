@@ -2,102 +2,118 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://algocode.chat/docs/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
+    </url>
+    <url>
+         <loc>https://algocode.chat/docs/acceptance/P0/report/</loc>
+         <lastmod>2026-09-19</lastmod>
+    </url>
+    <url>
+         <loc>https://algocode.chat/docs/acceptance/P0-debug/report/</loc>
+         <lastmod>2026-09-19</lastmod>
+    </url>
+    <url>
+         <loc>https://algocode.chat/docs/acceptance/P1-check/report/</loc>
+         <lastmod>2026-09-19</lastmod>
+    </url>
+    <url>
+         <loc>https://algocode.chat/docs/acceptance/P1-final/report/</loc>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/changelog/v0.1.0/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/changelog/v0.1.1/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/commands/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/concepts/architecture/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/concepts/candidate-lifecycle/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/concepts/evidence-model/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/concepts/model-providers/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/concepts/policy-approval-sandbox/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/concepts/storage-and-artifacts/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/development/code-structure/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/development/release/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/development/testing/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/getting-started/configuration/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/getting-started/installation/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/getting-started/quickstart/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/getting-started/troubleshooting/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/reference/benchmark-spec/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/reference/cli/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/reference/config/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/reference/contract-schema/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/reference/correctness-spec/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/reference/project-layout/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/user-guide/quick-workflow/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
     <url>
          <loc>https://algocode.chat/docs/user-guide/workflow/</loc>
-         <lastmod>2026-09-18</lastmod>
+         <lastmod>2026-09-19</lastmod>
     </url>
 </urlset>

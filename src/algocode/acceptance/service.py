@@ -32,6 +32,8 @@ ZERO_METRICS = (
     "replay_divergence_count",
     "event_sequence_gap_count",
     "apply_rollback_failure_count",
+    "noise_false_accept_count",
+    "minimal_gain_detection_count",
 )
 
 
@@ -204,6 +206,20 @@ def _probe_checks(probe: ProbeMetrics) -> list[GateCheck]:
                 "task_status": probe.task_status,
             },
         ),
+        GateCheck(
+            id="metric.noise_false_accept",
+            category="evidence",
+            passed=probe.noise_false_accept_count == 0,
+            message=f"noise false accept count = {probe.noise_false_accept_count}",
+            metrics={"noise_false_accept_count": probe.noise_false_accept_count},
+        ),
+        GateCheck(
+            id="metric.minimal_gain_detection",
+            category="evidence",
+            passed=probe.minimal_gain_detection_count == 1,
+            message=f"minimal 5% gain detection count = {probe.minimal_gain_detection_count}",
+            metrics={"minimal_gain_detection_count": probe.minimal_gain_detection_count},
+        ),
     ]
 
 
@@ -217,6 +233,8 @@ def _metrics(probe: ProbeMetrics | None) -> dict[str, int | float | str | None]:
         "replay_divergence_count": probe.replay_divergence_count,
         "event_sequence_gap_count": probe.event_sequence_gap_count,
         "apply_rollback_failure_count": probe.apply_rollback_failure_count,
+        "noise_false_accept_count": probe.noise_false_accept_count,
+        "minimal_gain_detection_count": probe.minimal_gain_detection_count,
         "event_count": probe.event_count,
         "task_status": probe.task_status,
     }
@@ -242,3 +260,4 @@ def render_acceptance_markdown(report: AcceptanceReport) -> str:
         if check.output_tail:
             lines.extend(["", "```text", check.output_tail, "```", ""])
     return "\n".join(lines) + "\n"
+

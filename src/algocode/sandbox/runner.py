@@ -53,6 +53,7 @@ class SandboxProcessRunner:
 
     def __init__(self, config: SandboxConfig | None = None) -> None:
         self.config = config or SandboxConfig(allowed_env=DEFAULT_ALLOWED_ENV)
+        self.backend_reason = ""
         self.backend = self._select_backend()
 
     async def run(
@@ -184,20 +185,40 @@ class SandboxProcessRunner:
 
     def _select_backend(self) -> str:
         if self.config.mode == "trusted-local":
+            self.backend_reason = "trusted-local mode"
             return "native"
         if self.config.backend == "disabled":
+            self.backend_reason = "sandbox backend is disabled"
             return "disabled"
         if self.config.backend == "native":
+            self.backend_reason = "native backend explicitly configured"
             return "native"
         if self.config.backend == "docker":
-            return "docker" if _docker_ready(self.config.image) else "disabled"
+            if _docker_ready(self.config.image):
+                self.backend_reason = "docker backend explicitly configured"
+                return "docker"
+            self.backend_reason = "configured docker backend is unavailable"
+            return "disabled"
         if self.config.backend == "wsl2":
-            return "wsl2" if _wsl_ready(self.config.wsl_distro, self.config.network) else "disabled"
-        if _docker_ready(self.config.image):
+            if _wsl_ready(self.config.wsl_distro, self.config.network):
+                self.backend_reason = "wsl2 backend explicitly configured"
+                return "wsl2"
+            self.backend_reason = "configured wsl2 backend is unavailable"
+            return "disabled"
+
+        if _docker_ready(self.config.image) and _docker_toolchain_ready(self.config.image):
+            self.backend_reason = "docker backend and toolchain available"
             return "docker"
-        if _wsl_ready(self.config.wsl_distro, self.config.network):
+        if _wsl_ready(self.config.wsl_distro, self.config.network) and _wsl_toolchain_ready(
+            self.config.wsl_distro
+        ):
+            self.backend_reason = "wsl2 backend and toolchain available"
             return "wsl2"
-        return "native"
+        if _native_toolchain_ready():
+            self.backend_reason = "native toolchain available"
+            return "native"
+        self.backend_reason = "no docker/wsl/native sandbox toolchain is available"
+        return "disabled"
 
     def _docker_command(
         self,
@@ -615,6 +636,70 @@ def _wsl_ready(distro: str, network: bool) -> bool:
     except (OSError, subprocess.SubprocessError):
         return False
     return result.returncode == 0
+
+
+def docker_tool_version(tool: str, image: str) -> str | None:
+    executable = shutil.which("docker")
+    if executable is None:
+        return None
+    try:
+        result = subprocess.run(
+            (executable, "run", "--rm", "--entrypoint", tool, image, "--version"),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    output = result.stdout.strip() or result.stderr.strip()
+    if not output:
+        return None
+    return output.splitlines()[0]
+
+
+def wsl_tool_version(tool: str, distro: str) -> str | None:
+    executable = shutil.which("wsl.exe") or shutil.which("wsl")
+    if executable is None:
+        return None
+    try:
+        result = subprocess.run(
+            (executable, "-d", distro, "-u", "root", "--", tool, "--version"),
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    output = result.stdout.strip() or result.stderr.strip()
+    if not output:
+        return None
+    return output.splitlines()[0]
+
+
+def _docker_toolchain_ready(image: str) -> bool:
+    return docker_tool_version("g++", image) is not None and (
+        docker_tool_version("python3", image) is not None
+        or docker_tool_version("python", image) is not None
+    )
+
+
+def _wsl_toolchain_ready(distro: str) -> bool:
+    return wsl_tool_version("g++", distro) is not None and (
+        wsl_tool_version("python3", distro) is not None
+        or wsl_tool_version("python", distro) is not None
+    )
+
+
+def _native_toolchain_ready() -> bool:
+    has_compiler = any(shutil.which(name) for name in ("g++", "clang++", "cl"))
+    has_python = bool(sys.executable) or any(shutil.which(name) for name in ("python", "python3"))
+    return has_compiler and has_python
 
 
 def _is_secret_name(name: str) -> bool:

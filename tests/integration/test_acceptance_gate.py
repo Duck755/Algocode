@@ -24,9 +24,12 @@ class AcceptanceGateTests(unittest.TestCase):
             self.assertEqual(report.metrics["replay_divergence_count"], 0)
             self.assertEqual(report.metrics["event_sequence_gap_count"], 0)
             self.assertEqual(report.metrics["apply_rollback_failure_count"], 0)
+            self.assertEqual(report.metrics["noise_false_accept_count"], 0)
+            self.assertEqual(report.metrics["minimal_gain_detection_count"], 1)
             self.assertTrue((report_dir / "report.json").exists())
             self.assertTrue((report_dir / "report.md").exists())
 
 
 if __name__ == "__main__":
     unittest.main()
+

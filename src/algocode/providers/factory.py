@@ -8,6 +8,7 @@ from algocode.config import AlgocodeConfig
 from algocode.providers.anthropic import AnthropicProvider
 from algocode.providers.errors import AuthenticationError, InvalidRequestError
 from algocode.providers.openai_compatible import OpenAICompatibleProvider
+from algocode.providers.responses import ResponsesProvider
 from algocode.providers.types import ModelRef
 from algocode.security import CredentialStore, SecretRedactor
 
@@ -28,7 +29,7 @@ def build_provider(
     provider_key: str | None = None,
     model_key: str | None = None,
     redactor: SecretRedactor | None = None,
-) -> tuple[AnthropicProvider | OpenAICompatibleProvider, ModelRef]:
+) -> tuple[AnthropicProvider | OpenAICompatibleProvider | ResponsesProvider, ModelRef]:
     selected_provider, selected_model = resolve_model_selection(config, provider_key, model_key)
     try:
         provider_config = config.providers[selected_provider]
@@ -38,7 +39,7 @@ def build_provider(
         model_config = config.models[selected_model]
     except KeyError as exc:
         raise InvalidRequestError(f"model {selected_model!r} is not configured") from exc
-    if provider_config.type not in {"openai-compatible", "anthropic"}:
+    if provider_config.type not in {"openai-compatible", "anthropic", "responses"}:
         raise InvalidRequestError(f"provider type {provider_config.type!r} is not supported")
     if not provider_config.base_url:
         raise InvalidRequestError(f"provider {selected_provider!r} has no baseUrl")
@@ -50,11 +51,12 @@ def build_provider(
         "model_id": model_config.model,
         "redactor": redactor or SecretRedactor.from_config(config),
     }
-    provider = (
-        AnthropicProvider(**provider_options)
-        if provider_config.type == "anthropic"
-        else OpenAICompatibleProvider(**provider_options)
-    )
+    if provider_config.type == "anthropic":
+        provider = AnthropicProvider(**provider_options)
+    elif provider_config.type == "responses":
+        provider = ResponsesProvider(**provider_options)
+    else:
+        provider = OpenAICompatibleProvider(**provider_options)
     return provider, ModelRef(provider_id=selected_provider, model_id=model_config.model)
 
 

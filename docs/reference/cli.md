@@ -13,6 +13,7 @@
 | `--verbose` | 向 stderr 输出诊断信息。 |
 | `--no-color` | 禁用 ANSI 颜色。 |
 | `--data-dir <path>` | 覆盖 Algocode 数据目录。 |
+| `--progress/--no-progress` | 强制开启或关闭实时阶段进度（默认仅在 TTY 下开启）。 |
 
 需要指定当前任务时，很多命令可省略 `task_id`，默认读取 `.algocode/current-task.json`。
 
@@ -72,6 +73,7 @@ algocode model --provider openai
 algocode init
 algocode init --path ./demo --language python
 algocode init --no-bootstrap --no-write-config
+algocode init --yes
 ```
 
 | 选项 | 默认值 | 说明 |
@@ -81,6 +83,8 @@ algocode init --no-bootstrap --no-write-config
 | `--objective` | 空 | 初始任务目标。 |
 | `--bootstrap/--no-bootstrap` | `bootstrap` | 是否创建 Git/config 前提并执行首次基线。 |
 | `--write-config/--no-write-config` | `write-config` | 是否生成 `.algocode/config.yaml`。 |
+| `--yes` / `-y` | `false` | 跳过运行前的确认提示。 |
+| `--progress/--no-progress` | TTY 自动 | 强制显示或隐藏实时阶段进度。 |
 
 ## 优化主流程
 
@@ -105,6 +109,37 @@ algocode optimize --max-steps 20 --max-tool-calls 40 --stop-after verify
 | `--max-steps` | 配置值 | 每阶段最大模型轮次。 |
 | `--max-tool-calls` | 配置值 | 每阶段最大工具调用数。 |
 | `--stop-after` | `report` | 在指定阶段后停止。 |
+| `--progress/--no-progress` | TTY 自动 | 强制显示或隐藏实时进度日志。 |
+
+运行体验：
+
+- 运行中在 `stderr` 保留一行原地刷新的进度日志，动作或阶段结束时定格为永久日志行并追加 `✔` 或 `✖`。
+- 阶段名与工具名使用中文，`[algocode]` 前缀便于在混合日志中筛选。
+- 非 TTY 只输出定格行且不写控制字符；`--json`、`--quiet` 完全关闭进度。
+
+```text
+[algocode] 分析 | 1/10 | 第 2 轮 | 读取必需文件 成功 | 工具 1 | 12s ✔
+[algocode] 分析 | 1/10 | 完成 · 2 轮推理 · 2 次工具调用 | 1m04s ✔
+[algocode] 校验 | 6/10 | 第 3 轮 | 运行正确性测试 失败 | 工具 9 | 10.0s ✖
+```
+
+结束时的摘要行与证据链：
+
+```text
+optimize · completed · 耗时 4m04s
+┌─ 证据链 ────────────────────────────────────────────────────────────────────────────────────────────┐
+│   任务    task:task_9dc       completed                                                             │
+│   耗时    4m04s               14 轮推理 · 16 次工具调用                                             │
+│   阶段    10 个               分析 → 基线 → 方案 → 建候选 → 实现 → 校验 → 基准 → 对比 → 决策 → 报告 │
+│   候选    candidate:cand_5db  selected                                                              │
+│   正确性  run:corr_364        passed                                                                │
+│   基准    benchmark:bench_23  valid=True                                                            │
+│   提升    +3.95%              3.222 → 3.095 · p=0.006                                               │
+│   决策    accepted            correctness and benchmark evidence passed acceptance policy           │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+交互式终端下还会输出下一步菜单（查看候选改动 / 应用候选 / 生成任务报告 / 重新规划重试）。
 
 ### `algocode retry`
 
@@ -115,7 +150,7 @@ algocode retry
 algocode retry <task-id> --fake-provider
 ```
 
-没有优化记录时命令会失败。
+没有优化记录时命令会失败。`algocode retry` 与 `algocode optimize` 共享进度日志、证据链和下一步菜单，同样支持 `--progress/--no-progress`。
 
 ## 状态与证据
 

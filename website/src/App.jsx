@@ -43,12 +43,11 @@ import {
   X,
   Zap,
 } from 'lucide-react'
+import DocsPage from './Docs'
 
 const GH_URL = 'https://github.com/Duck755/Algocode'
 const PYPI_URL = 'https://pypi.org/project/algocode-agent/'
-const DOCS_URL = import.meta.env.DEV
-  ? 'http://127.0.0.1:8000/'
-  : `${import.meta.env.BASE_URL}docs/`
+const DOCS_PATH = '#/docs/getting-started/installation'
 
 const navItems = [
   { label: '能力', href: '#capabilities' },
@@ -56,11 +55,23 @@ const navItems = [
   { label: '快速开始', href: '#quickstart' },
   { label: '架构', href: '#architecture' },
   { label: '使用形态', href: '#usage' },
-  { label: '文档', href: DOCS_URL },
+  { label: '文档', href: DOCS_PATH },
 ]
 
 function Wordmark() {
   return <span className="wordmark">Algocode</span>
+}
+
+function useHashRoute() {
+  const [hash, setHash] = useState(window.location.hash)
+
+  useEffect(() => {
+    const onHashChange = () => setHash(window.location.hash)
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  return hash
 }
 
 function ParticleField() {
@@ -492,7 +503,7 @@ function Install() {
             </TerminalWindow>
 
             <div className="install-buttons">
-              <a className="button button-ghost" href={DOCS_URL} target="_blank" rel="noreferrer">
+              <a className="button button-ghost" href={DOCS_PATH}>
                 <BookOpen size={16} />
                 阅读文档
               </a>
@@ -1020,6 +1031,9 @@ function Footer() {
 }
 
 export default function App() {
+  const hash = useHashRoute()
+  const isDocs = hash.startsWith('#/docs')
+
   return (
     <>
       <div className="site-background" aria-hidden="true">
@@ -1029,13 +1043,19 @@ export default function App() {
       </div>
       <Navbar />
       <main>
-        <Hero />
-        <Install />
-        <Capabilities />
-        <Features />
-        <QuickStart />
-        <Architecture />
-        <Usage />
+        {isDocs ? (
+          <DocsPage route={hash} />
+        ) : (
+          <>
+            <Hero />
+            <Install />
+            <Capabilities />
+            <Features />
+            <QuickStart />
+            <Architecture />
+            <Usage />
+          </>
+        )}
       </main>
       <Footer />
     </>

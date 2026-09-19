@@ -34,30 +34,11 @@ jobs:
           npm ci
           npm run build
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install MkDocs Material
-        run: python -m pip install "mkdocs-material>=9.5,<10"
-
-      - name: Build documentation
-        run: python -m mkdocs build
-
-      - name: Assemble publish directory
-        shell: bash
-        run: |
-          rm -rf publish
-          mkdir -p publish/docs
-          cp -r website/dist/. publish/
-          cp -r site/. publish/docs/
-
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./publish
+          publish_dir: ./website/dist
           publish_branch: gh-pages
           cname: algocode.chat
           force_orphan: true

@@ -17,6 +17,8 @@ class BenchmarkProjection:
     def apply(self, connection: sqlite3.Connection, event: EventEnvelope) -> None:
         if event.type is EventType.EXPERIMENT_CREATED:
             payload = event.payload
+            if "run_id" not in payload:
+                return
             connection.execute(
                 """
                 INSERT INTO benchmark_runs(
@@ -121,6 +123,8 @@ class BenchmarkProjection:
             return
         if event.type in {EventType.EXPERIMENT_COMPLETED, EventType.EXPERIMENT_FAILED}:
             payload = event.payload
+            if "run_id" not in payload:
+                return
             status = (
                 BenchmarkStatus.COMPLETED.value
                 if event.type is EventType.EXPERIMENT_COMPLETED

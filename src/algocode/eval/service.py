@@ -17,6 +17,7 @@ from algocode.eval.types import EvalComparison, EvalRun, EvalTaskResult
 from algocode.providers.factory import build_provider, resolve_model_selection
 from algocode.providers.fake import DeterministicFakeProvider
 from algocode.providers.types import ModelRef
+from algocode.reproducibility import derive_seed
 from algocode.tools import build_default_registry
 
 
@@ -38,6 +39,14 @@ class EvalService:
         repeat_count: int = 1,
         seed: int = 0,
     ) -> EvalRun:
+        effective_seed = derive_seed(
+            self.config.runtime.run_seed,
+            "eval",
+            suite_name,
+            provider,
+            provider_key or "",
+            model_key or "",
+        ) if seed == 0 and self.config.runtime.run_seed != 0 else seed
         tasks = suite(suite_name)
         provider_factory, provider_name, model = self._provider_factory(
             provider,
@@ -56,7 +65,7 @@ class EvalService:
             suite=suite_name,
             provider=provider_name,
             model=model.model_id,
-            seed=seed,
+            seed=effective_seed,
             repeat_count=repeat_count,
             config_hash=compute_config_hash(self.config),
             tool_catalog_hash=_tool_catalog_hash(),

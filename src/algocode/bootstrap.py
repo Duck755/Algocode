@@ -10,8 +10,11 @@ from algocode.application.services import (
     CandidateService,
     CorrectnessService,
     DecisionService,
+    ExperimentService,
+    MaintenanceService,
     ProjectService,
     ReportService,
+    SearchArchiveService,
     TaskService,
 )
 from algocode.approval.service import (
@@ -37,6 +40,7 @@ from algocode.storage.sqlite.projections.benchmark_projection import BenchmarkPr
 from algocode.storage.sqlite.projections.candidate_projection import CandidateProjection
 from algocode.storage.sqlite.projections.correctness_projection import CorrectnessProjection
 from algocode.storage.sqlite.projections.decision_projection import DecisionProjection
+from algocode.storage.sqlite.projections.experiment_projection import ExperimentProjection
 from algocode.storage.sqlite.projections.project_projection import ProjectProjection
 from algocode.storage.sqlite.projections.task_projection import TaskProjection
 from algocode.tools import build_default_registry
@@ -62,6 +66,9 @@ class AppContext:
     candidate_service: CandidateService
     resource_provider: LocalResourceProvider
     decision_service: DecisionService
+    experiment_service: ExperimentService
+    maintenance_service: MaintenanceService
+    search_archive_service: SearchArchiveService
     apply_service: ApplyService
     report_service: ReportService
     policy_engine: PolicyEngine
@@ -102,6 +109,7 @@ def build_context(
     benchmark_projection = BenchmarkProjection()
     candidate_projection = CandidateProjection()
     decision_projection = DecisionProjection()
+    experiment_projection = ExperimentProjection()
     event_store = SqliteEventStore(
         database,
         projectors=(
@@ -112,6 +120,7 @@ def build_context(
             benchmark_projection,
             candidate_projection,
             decision_projection,
+            experiment_projection,
         ),
         redactor=secret_redactor,
     )
@@ -215,6 +224,24 @@ def build_context(
         decision_projection=decision_projection,
         acceptance_policy=config.acceptance_policy,
     )
+    experiment_service = ExperimentService(
+        event_store=event_store,
+        database=database,
+        experiment_projection=experiment_projection,
+    )
+    search_archive_service = SearchArchiveService(
+        task_service=task_service,
+        candidate_service=candidate_service,
+        correctness_service=correctness_service,
+        decision_service=decision_service,
+        benchmark_service=benchmark_service,
+    )
+    maintenance_service = MaintenanceService(
+        data_dir=resolved_data_dir,
+        database=database,
+        artifact_store=artifact_store,
+        retention_days=config.storage.artifact_retention_days,
+    )
     apply_service = ApplyService(
         event_store=event_store,
         task_service=task_service,
@@ -259,6 +286,9 @@ def build_context(
         candidate_service=candidate_service,
         resource_provider=resource_provider,
         decision_service=decision_service,
+        experiment_service=experiment_service,
+        maintenance_service=maintenance_service,
+        search_archive_service=search_archive_service,
         apply_service=apply_service,
         report_service=report_service,
         policy_engine=policy_engine,

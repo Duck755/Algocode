@@ -40,6 +40,7 @@ class CandidateStatus(StrEnum):
     VERIFYING = "verifying"
     VERIFIED = "verified"
     REJECTED = "rejected"
+    INCONCLUSIVE = "inconclusive"
     SELECTED = "selected"
     APPLIED = "applied"
     ROLLED_BACK = "rolled_back"

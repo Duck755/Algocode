@@ -1,0 +1,122 @@
+{
+  "checks": [
+    {
+      "category": "traceability",
+      "id": "matrix.mapping",
+      "message": "mapped 25 P0 requirements",
+      "metrics": {
+        "requirements_total": 25
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "test",
+      "id": "suite.skipped",
+      "message": "test suites skipped by request",
+      "metrics": {},
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.false_accept",
+      "message": "false accept count = 0",
+      "metrics": {
+        "false_accept_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.policy_violation",
+      "message": "policy violation count = 0",
+      "metrics": {
+        "policy_violation_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.protected_file_change",
+      "message": "protected file change count = 0",
+      "metrics": {
+        "protected_file_change_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.replay_divergence",
+      "message": "replay divergence count = 0",
+      "metrics": {
+        "replay_divergence_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.event_sequence_gap",
+      "message": "event sequence gap count = 0",
+      "metrics": {
+        "event_count": 26,
+        "event_sequence_gap_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.apply_rollback_failure",
+      "message": "apply/rollback failure count = 0",
+      "metrics": {
+        "apply_rollback_failure_count": 0,
+        "task_status": "ready"
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.noise_false_accept",
+      "message": "noise false accept count = 0",
+      "metrics": {
+        "noise_false_accept_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.minimal_gain_detection",
+      "message": "minimal 5% gain detection count = 1",
+      "metrics": {
+        "minimal_gain_detection_count": 1
+      },
+      "outputTail": "",
+      "passed": true
+    }
+  ],
+  "generatedAt": "2026-09-19T13:24:47.518508+00:00",
+  "metrics": {
+    "apply_rollback_failure_count": 0,
+    "event_count": 26,
+    "event_sequence_gap_count": 0,
+    "false_accept_count": 0,
+    "minimal_gain_detection_count": 1,
+    "noise_false_accept_count": 0,
+    "policy_violation_count": 0,
+    "protected_file_change_count": 0,
+    "replay_divergence_count": 0,
+    "task_status": "ready"
+  },
+  "reportId": "acceptance_a30f6a5d00524ac5af3d2db899ac8368",
+  "requirementsMapped": 25,
+  "requirementsTotal": 25,
+  "schemaVersion": 1,
+  "status": "PASS"
+}

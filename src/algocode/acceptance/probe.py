@@ -8,8 +8,10 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from algocode.application.services.decision_service import DecisionService
 from algocode.benchmark.spec import BenchmarkSpec
 from algocode.bootstrap import build_context
+from algocode.config.model import AcceptancePolicyConfig
 from algocode.correctness.spec import CorrectnessCase, CorrectnessSpec
 from algocode.domain.errors import DecisionError
 from algocode.domain.model import TaskPhase
@@ -43,6 +45,8 @@ class ProbeMetrics:
     replay_divergence_count: int
     event_sequence_gap_count: int
     apply_rollback_failure_count: int
+    noise_false_accept_count: int
+    minimal_gain_detection_count: int
     event_count: int
     task_status: str
 
@@ -61,7 +65,11 @@ async def _run_probe(root: Path) -> ProbeMetrics:
         {"main.py": "import time\ntime.sleep(0.05)\nprint('hello')\n"},
     )
     (project_root / ".algocode.yaml").write_text(
-        "acceptancePolicy:\n  minMedianImprovementPercent: -1000\n  requireStatisticallySignificant: false\n",
+        (
+            "acceptancePolicy:\n"
+            "  minMedianImprovementPercent: -1000\n"
+            "  requireStatisticallySignificant: false\n"
+        ),
         encoding="utf-8",
     )
     context = build_context(project_root=project_root, data_dir=root / "data")
@@ -187,6 +195,8 @@ async def _run_probe(root: Path) -> ProbeMetrics:
     except DecisionError:
         pass
 
+    noise_false_accepts, minimal_gain_detections = _policy_scenario_metrics()
+
     events = await context.event_store.read(str(task.id))
     gaps = sum(1 for expected, event in enumerate(events, start=1) if event.seq != expected)
     task_after = await context.task_service.get_task(task.id)
@@ -197,10 +207,60 @@ async def _run_probe(root: Path) -> ProbeMetrics:
         replay_divergence_count=replay_divergence,
         event_sequence_gap_count=gaps,
         apply_rollback_failure_count=apply_rollback_failures,
+        noise_false_accept_count=noise_false_accepts,
+        minimal_gain_detection_count=minimal_gain_detections,
         event_count=len(events),
         task_status=task_after.status.value,
     )
 
 
+def _policy_scenario_metrics() -> tuple[int, int]:
+    """Return (noise false accepts, minimal 5% gain detections)."""
+    service = DecisionService(
+        event_store=object(),
+        database=object(),
+        task_service=object(),
+        candidate_service=object(),
+        correctness_service=object(),
+        benchmark_service=object(),
+        decision_projection=object(),
+        acceptance_policy=AcceptancePolicyConfig(
+            min_median_improvement_percent=5.0,
+            max_variation_percent=5.0,
+            require_statistically_significant=False,
+        ),
+    )
+    noise_false_accepts = 0
+    minimal_gain_detections = 0
+
+    try:
+        service._validate_acceptance_thresholds(
+            {
+                "baseline_summary": {"variation_percent": 1.0},
+                "candidate_summary": {"variation_percent": 20.0},
+            },
+            {"valid": True, "improvement_percent": 50.0},
+        )
+        noise_false_accepts += 1
+    except DecisionError:
+        pass
+
+    try:
+        service._validate_acceptance_thresholds(
+            {
+                "baseline_summary": {"variation_percent": 1.0},
+                "candidate_summary": {"variation_percent": 2.0},
+            },
+            {"valid": True, "improvement_percent": 5.0},
+        )
+        minimal_gain_detections += 1
+    except DecisionError:
+        pass
+
+    return noise_false_accepts, minimal_gain_detections
+
+
 def run_release_probe(root: str | Path) -> ProbeMetrics:
     return asyncio.run(collect_release_evidence(root))
+
+

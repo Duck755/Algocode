@@ -1,0 +1,164 @@
+{
+  "checks": [
+    {
+      "category": "traceability",
+      "id": "matrix.mapping",
+      "message": "mapped 25 P0 requirements",
+      "metrics": {
+        "requirements_total": 25
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "test",
+      "id": "suite.unit",
+      "message": "unit exit code 0",
+      "metrics": {
+        "duration_seconds": 152.0638414999994
+      },
+      "outputTail": "....................s................................................... [ 43%]\n........................................................................ [ 86%]\n.......................                                                  [100%]",
+      "passed": true
+    },
+    {
+      "category": "test",
+      "id": "suite.contract",
+      "message": "contract exit code 0",
+      "metrics": {
+        "duration_seconds": 0.5245566999983566
+      },
+      "outputTail": "......                                                                   [100%]",
+      "passed": true
+    },
+    {
+      "category": "test",
+      "id": "suite.integration",
+      "message": "integration exit code 0",
+      "metrics": {
+        "duration_seconds": 376.3348374999987
+      },
+      "outputTail": ".................................................. [ 74%]\n.................                                                        [100%]",
+      "passed": true
+    },
+    {
+      "category": "test",
+      "id": "suite.e2e",
+      "message": "e2e exit code 0",
+      "metrics": {
+        "duration_seconds": 18.56363860000056
+      },
+      "outputTail": "..                                                                       [100%]",
+      "passed": true
+    },
+    {
+      "category": "test",
+      "id": "suite.eval",
+      "message": "eval exit code 0",
+      "metrics": {
+        "duration_seconds": 51.827982099999645
+      },
+      "outputTail": "..                                                                       [100%]",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.false_accept",
+      "message": "false accept count = 0",
+      "metrics": {
+        "false_accept_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.policy_violation",
+      "message": "policy violation count = 0",
+      "metrics": {
+        "policy_violation_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.protected_file_change",
+      "message": "protected file change count = 0",
+      "metrics": {
+        "protected_file_change_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.replay_divergence",
+      "message": "replay divergence count = 0",
+      "metrics": {
+        "replay_divergence_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.event_sequence_gap",
+      "message": "event sequence gap count = 0",
+      "metrics": {
+        "event_count": 26,
+        "event_sequence_gap_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.apply_rollback_failure",
+      "message": "apply/rollback failure count = 0",
+      "metrics": {
+        "apply_rollback_failure_count": 0,
+        "task_status": "ready"
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.noise_false_accept",
+      "message": "noise false accept count = 0",
+      "metrics": {
+        "noise_false_accept_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.minimal_gain_detection",
+      "message": "minimal 5% gain detection count = 1",
+      "metrics": {
+        "minimal_gain_detection_count": 1
+      },
+      "outputTail": "",
+      "passed": true
+    }
+  ],
+  "generatedAt": "2026-09-19T13:35:50.458600+00:00",
+  "metrics": {
+    "apply_rollback_failure_count": 0,
+    "event_count": 26,
+    "event_sequence_gap_count": 0,
+    "false_accept_count": 0,
+    "minimal_gain_detection_count": 1,
+    "noise_false_accept_count": 0,
+    "policy_violation_count": 0,
+    "protected_file_change_count": 0,
+    "replay_divergence_count": 0,
+    "task_status": "ready"
+  },
+  "reportId": "acceptance_70da69ad3f3f49b6949a429191243f6b",
+  "requirementsMapped": 25,
+  "requirementsTotal": 25,
+  "schemaVersion": 1,
+  "status": "PASS"
+}

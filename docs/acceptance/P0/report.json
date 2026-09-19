@@ -1,0 +1,142 @@
+{
+  "checks": [
+    {
+      "category": "traceability",
+      "id": "matrix.mapping",
+      "message": "mapped 25 P0 requirements",
+      "metrics": {
+        "requirements_total": 25
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "test",
+      "id": "suite.unit",
+      "message": "unit exit code 0",
+      "metrics": {
+        "duration_seconds": 62.35381330000382
+      },
+      "outputTail": "........................................................................ [ 74%]\n.........................                                                [100%]",
+      "passed": true
+    },
+    {
+      "category": "test",
+      "id": "suite.contract",
+      "message": "contract exit code 0",
+      "metrics": {
+        "duration_seconds": 0.5268863999954192
+      },
+      "outputTail": "......                                                                   [100%]",
+      "passed": true
+    },
+    {
+      "category": "test",
+      "id": "suite.integration",
+      "message": "integration exit code 0",
+      "metrics": {
+        "duration_seconds": 134.8464187999998
+      },
+      "outputTail": "...........................................        [100%]",
+      "passed": true
+    },
+    {
+      "category": "test",
+      "id": "suite.e2e",
+      "message": "e2e exit code 0",
+      "metrics": {
+        "duration_seconds": 40.69971789999545
+      },
+      "outputTail": "..                                                                       [100%]",
+      "passed": true
+    },
+    {
+      "category": "test",
+      "id": "suite.eval",
+      "message": "eval exit code 0",
+      "metrics": {
+        "duration_seconds": 35.97144759999355
+      },
+      "outputTail": "..                                                                       [100%]",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.false_accept",
+      "message": "false accept count = 0",
+      "metrics": {
+        "false_accept_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.policy_violation",
+      "message": "policy violation count = 0",
+      "metrics": {
+        "policy_violation_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.protected_file_change",
+      "message": "protected file change count = 0",
+      "metrics": {
+        "protected_file_change_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.replay_divergence",
+      "message": "replay divergence count = 0",
+      "metrics": {
+        "replay_divergence_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.event_sequence_gap",
+      "message": "event sequence gap count = 0",
+      "metrics": {
+        "event_count": 26,
+        "event_sequence_gap_count": 0
+      },
+      "outputTail": "",
+      "passed": true
+    },
+    {
+      "category": "evidence",
+      "id": "metric.apply_rollback_failure",
+      "message": "apply/rollback failure count = 0",
+      "metrics": {
+        "apply_rollback_failure_count": 0,
+        "task_status": "ready"
+      },
+      "outputTail": "",
+      "passed": true
+    }
+  ],
+  "generatedAt": "2026-09-15T16:01:06.117120+00:00",
+  "metrics": {
+    "apply_rollback_failure_count": 0,
+    "event_count": 26,
+    "event_sequence_gap_count": 0,
+    "false_accept_count": 0,
+    "policy_violation_count": 0,
+    "protected_file_change_count": 0,
+    "replay_divergence_count": 0,
+    "task_status": "ready"
+  },
+  "reportId": "acceptance_4c96568115cc47cdbf7c95cd95a0cf7c",
+  "requirementsMapped": 25,
+  "requirementsTotal": 25,
+  "schemaVersion": 1,
+  "status": "PASS"
+}

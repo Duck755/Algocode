@@ -20,18 +20,35 @@ def current_task_path(project_root: str | Path) -> Path:
     return Path(project_root).resolve() / STATE_DIR / CURRENT_TASK_FILE
 
 
+def load_state_file(path: str | Path) -> dict[str, Any] | None:
+    """Read one ``current-task.json``; return None when absent or unreadable."""
+
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
 def find_current_task(start: str | Path | None = None) -> dict[str, Any] | None:
+    """Walk upwards from ``start`` looking for the nearest project state."""
+
     current = Path(start or Path.cwd()).resolve()
     for directory in (current, *current.parents):
         path = current_task_path(directory)
         if not path.is_file():
             continue
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return None
-        return payload if isinstance(payload, dict) else None
+        return load_state_file(path)
     return None
+
+
+def read_current_task(directory: str | Path) -> dict[str, Any] | None:
+    """Read exactly this directory's state, never a parent project's."""
+
+    path = current_task_path(directory)
+    if not path.is_file():
+        return None
+    return load_state_file(path)
 
 
 def write_contract(
@@ -145,7 +162,15 @@ def update_current_task(
 ) -> dict[str, Any]:
     root = Path(project_root).resolve()
     path = current_task_path(root)
-    payload = find_current_task(root) or {}
+    payload: dict[str, Any] = {
+        "schemaVersion": 1,
+        "root": str(root),
+        "contractPath": f"{STATE_DIR}/{CONTRACT_FILE}",
+        "taskSummaryPath": f"{STATE_DIR}/{TASK_SUMMARY_FILE}",
+    }
+    existing = read_current_task(root)
+    if existing is not None:
+        payload = {**existing, **payload}
     payload.update(updates)
     payload["updatedAt"] = datetime.now(UTC).isoformat()
     path.parent.mkdir(parents=True, exist_ok=True)

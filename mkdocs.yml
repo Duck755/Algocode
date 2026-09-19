@@ -29,8 +29,7 @@ theme:
         name: 切换到浅色模式
   features:
     - navigation.top
-    - navigation.tabs
-    - navigation.tabs.sticky
+    - navigation.expand
     - search.suggest
     - search.highlight
     - content.code.copy

@@ -278,6 +278,40 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=10,
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS experiments (
+                id TEXT PRIMARY KEY,
+                task_id TEXT NOT NULL,
+                baseline_id TEXT NOT NULL,
+                candidate_id TEXT NOT NULL,
+                spec_hash TEXT NOT NULL,
+                input_hash TEXT NOT NULL,
+                environment_hash TEXT NOT NULL,
+                comparison_key TEXT NOT NULL,
+                policy_hash TEXT NOT NULL,
+                status TEXT NOT NULL,
+                decision TEXT,
+                started_at TEXT,
+                completed_at TEXT,
+                invalidation_reason TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(task_id) REFERENCES tasks(id),
+                FOREIGN KEY(candidate_id) REFERENCES candidates(id)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_experiments_task_created
+            ON experiments(task_id, created_at DESC)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_experiments_candidate
+            ON experiments(candidate_id, created_at DESC)
+            """,
+        ),
+    ),
 )
 
 

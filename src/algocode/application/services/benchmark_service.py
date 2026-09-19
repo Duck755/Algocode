@@ -32,7 +32,9 @@ from algocode.benchmark.types import (
 from algocode.domain.errors import BenchmarkError, CorrectnessError, NotFoundError
 from algocode.domain.events import EventEnvelope, EventType
 from algocode.domain.model import (
+    BenchmarkMetric,
     BenchmarkRun,
+    BenchmarkStatus,
     CorrectnessStatus,
     Language,
     TaskId,
@@ -143,6 +145,22 @@ class BenchmarkService:
         candidate_hash = (
             await candidate_repository.capture_snapshot(candidate_workspace)
         ).snapshot_hash
+        cached_run = await self._find_cached_candidate_run(
+            task.id,
+            candidate_hash=candidate_hash,
+            comparison_key=comparison_key,
+        )
+        if cached_run is not None:
+            return await self._return_cached_candidate_run(
+                task_id=task.id,
+                candidate_id=candidate_id,
+                candidate_workspace=candidate_workspace,
+                correctness_result_id=correctness_result_id,
+                comparison_key=comparison_key,
+                candidate_hash=candidate_hash,
+                baseline_hash=baseline_hash,
+                cached_run=cached_run,
+            )
         run_id = f"bench_{uuid4().hex}"
         started_seq = await self._next_seq(str(task.id))
         await self._event_store.append(
@@ -311,6 +329,149 @@ class BenchmarkService:
                 ),
                 _event(
                     str(task.id),
+                    started_seq + 3,
+                    EventType.EXPERIMENT_COMPLETED,
+                    {"run_id": run_id},
+                ),
+            ),
+        )
+        run = await self.get(run_id)
+        return run, result, comparison
+
+    async def _find_cached_candidate_run(
+        self,
+        task_id: TaskId,
+        *,
+        candidate_hash: str,
+        comparison_key: str,
+    ) -> BenchmarkRun | None:
+        for run in await self.list_for_task(task_id):
+            if run.target_kind != "candidate" or run.status is not BenchmarkStatus.COMPLETED:
+                continue
+            if run.comparison_key != comparison_key:
+                continue
+            if run.result_ref is None or run.comparison_ref is None:
+                continue
+            cached_workspace = Path(run.workspace_ref)
+            if not cached_workspace.exists():
+                continue
+            try:
+                repository = await GitRepository.discover(cached_workspace)
+                snapshot = await repository.capture_snapshot(cached_workspace)
+            except Exception:
+                continue
+            if snapshot.snapshot_hash == candidate_hash:
+                return run
+        return None
+
+    async def _return_cached_candidate_run(
+        self,
+        *,
+        task_id: TaskId,
+        candidate_id: str,
+        candidate_workspace: Path,
+        correctness_result_id: str,
+        comparison_key: str,
+        candidate_hash: str,
+        baseline_hash: str,
+        cached_run: BenchmarkRun,
+    ) -> tuple[BenchmarkRun, BenchmarkResult, ComparisonResult]:
+        cached_result_payload = await self.read_result(cached_run)
+        cached_comparison_payload = await self.read_comparison(cached_run)
+        if cached_result_payload is None or cached_comparison_payload is None:
+            raise BenchmarkError("cached benchmark is missing its result or comparison artifact")
+
+        run_id = f"bench_{uuid4().hex}"
+        result = _result_from_payload(
+            cached_result_payload,
+            target_id=candidate_id,
+            workspace_ref=str(candidate_workspace),
+            workspace_hash=candidate_hash,
+        )
+        comparison = _comparison_from_payload(
+            cached_comparison_payload,
+            candidate_run_id=run_id,
+            candidate_id=candidate_id,
+        )
+        baseline_summary = (
+            _summary_from_payload(cached_result_payload["baseline_summary"])
+            if cached_result_payload.get("baseline_summary") is not None
+            else None
+        )
+        all_samples = tuple(
+            _sample_from_payload(sample) for sample in cached_result_payload.get("samples", [])
+        )
+        result_bytes = _serialize_result(
+            result,
+            baseline_summary=baseline_summary,
+            candidate_summary=result.summary,
+            comparison=comparison,
+            all_samples=all_samples,
+            baseline_workspace_hash=baseline_hash,
+        )
+        comparison_bytes = _serialize_comparison(comparison)
+        result_ref = await self._artifact_store.put(
+            result_bytes,
+            kind="benchmark-result",
+            mime_type="application/json",
+            metadata={"task_id": str(task_id), "comparison_key": comparison_key},
+        )
+        comparison_ref = await self._artifact_store.put(
+            comparison_bytes,
+            kind="benchmark-comparison",
+            mime_type="application/json",
+            metadata={"task_id": str(task_id), "comparison_key": comparison_key},
+        )
+
+        started_seq = await self._next_seq(str(task_id))
+        await self._event_store.append(
+            str(task_id),
+            started_seq - 1,
+            (
+                _event(
+                    str(task_id),
+                    started_seq,
+                    EventType.EXPERIMENT_CREATED,
+                    {
+                        "run_id": run_id,
+                        "target_kind": "candidate",
+                        "target_id": candidate_id,
+                        "workspace_ref": str(candidate_workspace),
+                        "spec_hash": cached_result_payload["spec_hash"],
+                        "input_hash": cached_result_payload["input_hash"],
+                        "environment_hash": cached_result_payload["environment_hash"],
+                        "comparison_key": comparison_key,
+                        "correctness_result_id": correctness_result_id,
+                    },
+                ),
+            ),
+        )
+        await self._event_store.append(
+            str(task_id),
+            started_seq,
+            (
+                _samples_event(
+                    str(task_id),
+                    started_seq + 1,
+                    run_id=run_id,
+                    target_kind="candidate",
+                    target_id=candidate_id,
+                    result_ref=result_ref,
+                    samples=all_samples,
+                ),
+                _event(
+                    str(task_id),
+                    started_seq + 2,
+                    EventType.COMPARISON_PRODUCED,
+                    {
+                        "run_id": run_id,
+                        "comparison_ref": _artifact_payload(comparison_ref),
+                        "comparison": _comparison_payload(comparison),
+                    },
+                    artifact_refs=(comparison_ref,),
+                ),
+                _event(
+                    str(task_id),
                     started_seq + 3,
                     EventType.EXPERIMENT_COMPLETED,
                     {"run_id": run_id},
@@ -585,6 +746,94 @@ def _summary_payload(summary: BenchmarkSummary | None) -> dict[str, float | int]
         "trimmed_median": summary.trimmed_median,
         "trimmed_count": summary.trimmed_count,
     }
+
+
+def _summary_from_payload(payload: dict | None) -> BenchmarkSummary | None:
+    if payload is None:
+        return None
+    return BenchmarkSummary(
+        count=int(payload["count"]),
+        median=float(payload["median"]),
+        minimum=float(payload["minimum"]),
+        maximum=float(payload["maximum"]),
+        mean=float(payload["mean"]),
+        stddev=float(payload["stddev"]),
+        variation_percent=float(payload["variation_percent"]),
+        ci_lower=float(payload.get("ci_lower", 0.0)),
+        ci_upper=float(payload.get("ci_upper", 0.0)),
+        sample_stddev=float(payload.get("sample_stddev", 0.0)),
+        trimmed_median=float(payload.get("trimmed_median", 0.0)),
+        trimmed_count=int(payload.get("trimmed_count", 0)),
+    )
+
+
+def _sample_from_payload(payload: dict) -> BenchmarkSample:
+    return BenchmarkSample(
+        target_kind=payload["target_kind"],
+        target_id=payload["target_id"],
+        phase=payload["phase"],
+        index=int(payload["index"]),
+        metric=BenchmarkMetric(payload["metric"]),
+        value=float(payload["value"]),
+        duration_seconds=float(payload["duration_seconds"]),
+        exit_code=int(payload["exit_code"]),
+        valid=bool(payload["valid"]),
+        message=payload.get("message", ""),
+        input_id=payload.get("input_id", ""),
+    )
+
+
+def _result_from_payload(
+    payload: dict,
+    *,
+    target_id: str,
+    workspace_ref: str,
+    workspace_hash: str,
+) -> BenchmarkResult:
+    summary_payload = payload.get("summary") or payload.get("candidate_summary")
+    samples = tuple(
+        _sample_from_payload(sample)
+        for sample in payload.get("samples", [])
+        if sample.get("target_kind") == "candidate"
+    )
+    return BenchmarkResult(
+        target_kind="candidate",
+        target_id=target_id,
+        workspace_ref=workspace_ref,
+        spec_hash=payload["spec_hash"],
+        input_hash=payload["input_hash"],
+        environment_hash=payload["environment_hash"],
+        comparison_key=payload["comparison_key"],
+        workspace_hash=workspace_hash,
+        samples=samples,
+        summary=_summary_from_payload(summary_payload),
+        valid=bool(payload.get("valid", False)),
+        message=payload.get("message", ""),
+    )
+
+
+def _comparison_from_payload(
+    payload: dict,
+    *,
+    candidate_run_id: str,
+    candidate_id: str,
+) -> ComparisonResult:
+    return ComparisonResult(
+        baseline_run_id=payload["baseline_run_id"],
+        candidate_run_id=candidate_run_id,
+        baseline_id=payload["baseline_id"],
+        candidate_id=candidate_id,
+        comparison_key=payload["comparison_key"],
+        baseline_median=float(payload["baseline_median"]),
+        candidate_median=float(payload["candidate_median"]),
+        improvement_percent=float(payload["improvement_percent"]),
+        valid=bool(payload["valid"]),
+        reason=payload.get("reason", ""),
+        p_value=float(payload.get("p_value", 1.0)),
+        ci_lower=float(payload.get("ci_lower", 0.0)),
+        ci_upper=float(payload.get("ci_upper", 0.0)),
+        statistically_significant=bool(payload.get("statistically_significant", False)),
+    )
 
 
 def _comparison_payload(comparison: ComparisonResult) -> dict[str, object]:

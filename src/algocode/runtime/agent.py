@@ -22,6 +22,7 @@ from algocode.domain.model import (
     BenchmarkStatus,
     CandidateStatus,
     CorrectnessStatus,
+    DecisionOutcome,
     Language,
     TaskId,
     TaskPhase,
@@ -29,6 +30,7 @@ from algocode.domain.model import (
 )
 from algocode.languages.types import BuildProfile
 from algocode.ports import EventStore
+from algocode.profiling import collect_profile
 from algocode.project_layout import ProjectLayout
 from algocode.providers.errors import ContextOverflowError, ToolProtocolError
 from algocode.providers.types import (
@@ -37,7 +39,6 @@ from algocode.providers.types import (
     ModelUsage,
     ToolCall,
 )
-from algocode.profiling import collect_profile
 from algocode.runtime.analysis import (
     AnalysisReport,
     ReadCoverage,
@@ -125,6 +126,14 @@ class AgentRuntime:
         protected_files: tuple[str, ...] = (),
         model: ModelRef | None = None,
         model_log_root: str | Path | None = None,
+        decision_service=None,
+        experiment_service=None,
+        search_archive_service=None,
+        max_candidates: int = 3,
+        max_population: int = 6,
+        max_evals: int = 50,
+        max_iterations: int = 3,
+        cost_budget_usd: float | None = None,
     ) -> None:
         self._event_store = event_store
         self._task_service = task_service
@@ -143,6 +152,17 @@ class AgentRuntime:
         self._resource_provider = resource_provider
         self._redactor = redactor or SecretRedactor()
         self._database = database
+        self._decision_service = decision_service
+        self._experiment_service = experiment_service
+        self._search_archive_service = search_archive_service
+        self._max_candidates = max_candidates
+        self._max_population = max_population
+        self._max_evals = max_evals
+        self._max_iterations = max_iterations
+        self._cost_budget_usd = cost_budget_usd
+        self._model_evals_used = 0
+        self._estimated_cost_usd = 0.0
+        self._policy_hash = policy_hash
         self._context_builder = ContextBuilder(
             context_window=context_window,
             config_hash=config_hash,
@@ -278,6 +298,11 @@ class AgentRuntime:
         correctness_result_id: str | None = None
         active_candidate_id = candidate_id
         active_workspace = workspace
+        base_workspace = workspace
+        force_new_candidate = False
+        candidate_iterations = 0
+        search_history: list[str] = []
+        search_allowed = stop_after is TaskPhase.REPORT
 
         for index, phase in enumerate(phases):
             candidates = []
@@ -293,7 +318,7 @@ class AgentRuntime:
                         for candidate in candidates
                         if str(candidate.id) in retry_candidate_ids
                     ]
-                if active_candidate_id is None and selectable:
+                if active_candidate_id is None and selectable and not force_new_candidate:
                     active_candidate_id = str(selectable[0].id)
                     active_workspace = Path(selectable[0].workspace_ref)
             if (
@@ -395,6 +420,35 @@ class AgentRuntime:
             if auto_outcome is not None:
                 outcomes.append(auto_outcome)
                 completed.append(phase.value)
+                if phase is TaskPhase.GENERATE_CANDIDATE:
+                    force_new_candidate = False
+                searching = (
+                    phase is TaskPhase.DECIDE
+                    and search_allowed
+                    and await self._should_continue_search(
+                        task, candidates, active_candidate_id, candidate_iterations + 1
+                    )
+                )
+                if searching:
+                    candidate_iterations += 1
+                    search_history.append(
+                        f"candidate {active_candidate_id}: {auto_outcome.summary}"
+                    )
+                    archive_context = await self._search_archive_context(str(task.id))
+                    if archive_context:
+                        search_history.append(archive_context)
+                    active_candidate_id = None
+                    active_workspace = base_workspace
+                    correctness_result_id = None
+                    force_new_candidate = True
+                    phases[index + 1 : index + 1] = (
+                        TaskPhase.GENERATE_CANDIDATE,
+                        TaskPhase.IMPLEMENT,
+                        TaskPhase.VERIFY,
+                        TaskPhase.BENCHMARK,
+                        TaskPhase.COMPARE,
+                        TaskPhase.DECIDE,
+                    )
                 continue
             outcome, phase_turns, phase_tool_calls, correctness_result_id = await self._run_phase(
                 task_id=str(task.id),
@@ -404,7 +458,7 @@ class AgentRuntime:
                 candidate_id=active_candidate_id,
                 correctness_result_id=correctness_result_id,
                 cancel_event=cancel_event,
-                optimization_history=optimization_history,
+                optimization_history=optimization_history + "\n".join(search_history),
                 retry_records=optimization_records,
             )
             outcomes.append(outcome)
@@ -446,6 +500,28 @@ class AgentRuntime:
                     outcomes=tuple(outcomes),
                 )
             completed.append(phase.value)
+            if phase is TaskPhase.GENERATE_CANDIDATE:
+                force_new_candidate = False
+            if phase is TaskPhase.DECIDE and search_allowed and await self._should_continue_search(
+                task, candidates, active_candidate_id, candidate_iterations + 1
+            ):
+                candidate_iterations += 1
+                search_history.append(f"candidate {active_candidate_id}: {outcome.summary}")
+                archive_context = await self._search_archive_context(str(task.id))
+                if archive_context:
+                    search_history.append(archive_context)
+                active_candidate_id = None
+                active_workspace = base_workspace
+                correctness_result_id = None
+                force_new_candidate = True
+                phases[index + 1 : index + 1] = (
+                    TaskPhase.GENERATE_CANDIDATE,
+                    TaskPhase.IMPLEMENT,
+                    TaskPhase.VERIFY,
+                    TaskPhase.BENCHMARK,
+                    TaskPhase.COMPARE,
+                    TaskPhase.DECIDE,
+                )
 
         await self._append_phase(str(task.id), phases[-1], TaskStatus.COMPLETED)
         await self._append_terminal(str(task.id), phases[-1], TaskStatus.COMPLETED)
@@ -526,10 +602,81 @@ class AgentRuntime:
         comparison = await self._benchmark_service.read_comparison(benchmark)
         if not comparison:
             return None
+        if phase is TaskPhase.DECIDE and self._decision_service is not None:
+            return await self._auto_decide_phase(task, candidate_id, benchmark)
         improvement = float(comparison.get("improvement_percent", 0.0))
         valid = comparison.get("valid") is True
         summary = f"benchmark {benchmark.id}: valid={valid}, improvement={improvement:.6f}%"
         return PhaseOutcome(status="completed", summary=summary)
+
+    async def _auto_decide_phase(
+        self,
+        task,
+        candidate_id: str,
+        benchmark,
+    ) -> PhaseOutcome:
+        if self._candidate_service is not None:
+            candidate = await self._candidate_service.get(candidate_id)
+            if candidate.frozen_at is None:
+                await self._candidate_service.freeze(candidate_id)
+        decision = await self._decision_service.auto_decide(task.id, candidate_id)
+        if self._experiment_service is not None:
+            baseline = await self._baseline_service.get_for_task(task.id)
+            if baseline is not None:
+                experiment = await self._experiment_service.get_for_candidate(candidate_id)
+                if experiment is None:
+                    experiment = await self._experiment_service.create(
+                        task.id,
+                        candidate_id=candidate_id,
+                        baseline_id=baseline.id,
+                        spec_hash=benchmark.spec_hash,
+                        input_hash=benchmark.input_hash,
+                        environment_hash=benchmark.environment_hash,
+                        comparison_key=benchmark.comparison_key,
+                        policy_hash=self._policy_hash,
+                    )
+                await self._experiment_service.start(experiment.id)
+                await self._experiment_service.complete(
+                    experiment.id,
+                    decision=decision.outcome,
+                )
+        return PhaseOutcome(
+            status="completed",
+            summary=f"decision {decision.outcome.value}: {decision.reason}",
+        )
+
+    async def _should_continue_search(
+        self,
+        task,
+        candidates: list,
+        candidate_id: str | None,
+        candidate_iterations: int,
+    ) -> bool:
+        if self._candidate_service is None or self._decision_service is None:
+            return False
+        if candidate_id is None:
+            return False
+        if len(candidates) >= self._max_candidates:
+            return False
+        if candidate_iterations >= self._max_iterations:
+            return False
+        if self._model_evals_used >= self._max_evals:
+            return False
+        if (
+            self._cost_budget_usd is not None
+            and self._estimated_cost_usd >= self._cost_budget_usd
+        ):
+            return False
+        decision = await self._decision_service.get_for_candidate(candidate_id)
+        return decision is not None and decision.outcome is not DecisionOutcome.ACCEPTED
+
+    async def _search_archive_context(self, task_id: str) -> str:
+        if self._search_archive_service is None:
+            return ""
+        return await self._search_archive_service.render_context(
+            task_id,
+            max_population=self._max_population,
+        )
 
     async def _run_phase(
         self,
@@ -2127,6 +2274,9 @@ class AgentRuntime:
         phase: TaskPhase,
         usage: ModelUsage,
     ) -> None:
+        self._model_evals_used += 1
+        if usage.estimated_cost is not None:
+            self._estimated_cost_usd += float(usage.estimated_cost)
         seq = await self._next_seq(task_id)
         await self._event_store.append(
             task_id,

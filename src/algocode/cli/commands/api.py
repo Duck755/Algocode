@@ -2,12 +2,30 @@
 
 from __future__ import annotations
 
+import asyncio
+import os
+import sys
 from dataclasses import dataclass
+from pathlib import Path
+from uuid import uuid4
 
 import typer
 
+try:
+    import questionary
+
+    from algocode.cli.tui import select as green_check_select
+except ImportError:  # pragma: no cover - optional interactive TUI
+    questionary = None
+    green_check_select = None
+
 from algocode.cli.output import JsonOption, NoColorOption, QuietOption, VerboseOption, emit_result
-from algocode.config.global_file import update_global_config
+from algocode.config import load_config
+from algocode.config.global_file import read_global_config, update_global_config
+from algocode.providers.errors import ProviderError
+from algocode.providers.factory import build_provider
+from algocode.providers.model_catalog import list_models
+from algocode.providers.types import Message, ModelRequest
 from algocode.security import CredentialStore
 
 
@@ -20,6 +38,7 @@ class ProviderPreset:
     default_model: str
     context_window: int
     api_key_required: bool = True
+    api_key_env: str | None = None
 
 
 PRESETS: tuple[ProviderPreset, ...] = (
@@ -28,8 +47,9 @@ PRESETS: tuple[ProviderPreset, ...] = (
         label="OpenAI",
         provider_type="openai-compatible",
         base_url="https://api.openai.com/v1",
-        default_model="gpt- 5.6",
+        default_model="gpt-5.6",
         context_window=128_000,
+        api_key_env="OPENAI_API_KEY",
     ),
     ProviderPreset(
         key="deepseek",
@@ -38,6 +58,7 @@ PRESETS: tuple[ProviderPreset, ...] = (
         base_url="https://api.deepseek.com/v1",
         default_model="deepseek-flash",
         context_window=128_000,
+        api_key_env="DEEPSEEK_API_KEY",
     ),
     ProviderPreset(
         key="openrouter",
@@ -46,6 +67,7 @@ PRESETS: tuple[ProviderPreset, ...] = (
         base_url="https://openrouter.ai/api/v1",
         default_model="openai/gpt-5.6",
         context_window=128_000,
+        api_key_env="OPENROUTER_API_KEY",
     ),
     ProviderPreset(
         key="kimi",
@@ -54,6 +76,7 @@ PRESETS: tuple[ProviderPreset, ...] = (
         base_url="https://api.moonshot.cn/v1",
         default_model="moonshot-v1-128k",
         context_window=128_000,
+        api_key_env="MOONSHOT_API_KEY",
     ),
     ProviderPreset(
         key="zhipu",
@@ -62,6 +85,7 @@ PRESETS: tuple[ProviderPreset, ...] = (
         base_url="https://open.bigmodel.cn/api/paas/v4",
         default_model="glm-4-plus",
         context_window=128_000,
+        api_key_env="ZHIPU_API_KEY",
     ),
     ProviderPreset(
         key="minimax",
@@ -70,6 +94,7 @@ PRESETS: tuple[ProviderPreset, ...] = (
         base_url="https://api.minimaxi.com/v1",
         default_model="MiniMax-Text-01",
         context_window=1_000_000,
+        api_key_env="MINIMAX_API_KEY",
     ),
     ProviderPreset(
         key="claude",
@@ -78,6 +103,7 @@ PRESETS: tuple[ProviderPreset, ...] = (
         base_url="https://api.anthropic.com",
         default_model="claude-3-7-sonnet-latest",
         context_window=200_000,
+        api_key_env="ANTHROPIC_API_KEY",
     ),
     ProviderPreset(
         key="volcano",
@@ -86,6 +112,7 @@ PRESETS: tuple[ProviderPreset, ...] = (
         base_url="https://ark.cn-beijing.volces.com/api/v3",
         default_model="doubao-seed-1-6-250615",
         context_window=256_000,
+        api_key_env="ARK_API_KEY",
     ),
     ProviderPreset(
         key="qwen",
@@ -94,6 +121,7 @@ PRESETS: tuple[ProviderPreset, ...] = (
         base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         default_model="qwen-plus",
         context_window=128_000,
+        api_key_env="DASHSCOPE_API_KEY",
     ),
     ProviderPreset(
         key="custom",
@@ -114,6 +142,28 @@ PRESETS: tuple[ProviderPreset, ...] = (
     ),
 )
 
+PROTOCOL_LABELS = {
+    "openai-compatible": "OpenAI-compatible",
+    "anthropic": "Anthropic",
+    "responses": "OpenAI Responses",
+}
+_MANUAL_CUSTOM = "__custom__"
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderSelection:
+    provider_key: str
+    provider_type: str
+    base_url: str
+    model_id: str
+    context_window: int
+    api_key: str = ""
+    api_key_env: str | None = None
+
+    @property
+    def model_key(self) -> str:
+        return f"{self.provider_key}/{self.model_id}"
+
 
 def api_command(
     json_output: JsonOption = False,
@@ -123,6 +173,395 @@ def api_command(
 ) -> None:
     """Configure a model provider and store its API key locally."""
 
+    selection = (
+        _interactive_wizard()
+        if _interactive_terminal() and questionary is not None
+        else _legacy_wizard()
+    )
+    if selection is None:
+        typer.echo("已取消。")
+        raise typer.Exit()
+
+    try:
+        config_path = persist_provider_selection(selection)
+    except (OSError, ValueError, RuntimeError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
+
+    connection_result = ""
+    if _interactive_terminal() and questionary is not None and questionary.confirm(
+        "是否立即测试连接？", default=True
+    ).ask():
+        success, message = run_connection_check(selection)
+        connection_result = message
+        if success:
+            typer.echo(f"连接成功：{message}")
+        else:
+            typer.echo(f"连接失败：{message}", err=True)
+            typer.echo("Provider 配置已保存，可修复后运行 algocode test 重新验证。", err=True)
+    else:
+        typer.echo("运行 algocode test 验证连接。")
+
+    human_lines = [
+        f"Provider: {selection.provider_key}",
+        f"Base URL: {selection.base_url}",
+        f"Model: {selection.model_id}",
+        f"Config: {config_path}",
+    ]
+    if connection_result:
+        human_lines.append(f"Connection: {connection_result}")
+    emit_result(
+        "api",
+        data={
+            "provider": selection.provider_key,
+            "base_url": selection.base_url,
+            "model": selection.model_id,
+            "model_key": selection.model_key,
+            "config_path": str(config_path),
+            "connection": connection_result or None,
+        },
+        json_output=json_output,
+        no_color=no_color,
+        quiet=quiet,
+        verbose=verbose,
+        human_lines=tuple(human_lines),
+    )
+
+
+def persist_provider_selection(
+    selection: ProviderSelection,
+    credential_store: CredentialStore | None = None,
+) -> Path:
+    """Persist a selected provider/model and return the global config path."""
+    if selection.api_key:
+        store = credential_store or CredentialStore()
+        store.set(selection.provider_key, selection.api_key)
+        credential_ref = f"local://{selection.provider_key}"
+        api_key_env = None
+    elif selection.api_key_env:
+        credential_ref = None
+        api_key_env = selection.api_key_env
+    else:
+        raise ValueError("API Key 不能为空")
+
+    return update_global_config(
+        {
+            "providers": {
+                selection.provider_key: {
+                    "type": selection.provider_type,
+                    "base_url": selection.base_url,
+                    **(
+                        {"credential_ref": credential_ref}
+                        if credential_ref is not None
+                        else {"api_key_env": api_key_env}
+                    ),
+                }
+            },
+            "models": {
+                selection.model_key: {
+                    "provider": selection.provider_key,
+                    "model": selection.model_id,
+                    "context_window": selection.context_window,
+                }
+            },
+            "defaults": {
+                "provider": selection.provider_key,
+                "model": selection.model_key,
+            },
+        }
+    )
+
+
+def run_connection_check(selection: ProviderSelection) -> tuple[bool, str]:
+    """Send one tiny request to the selected provider and return success/text."""
+    config = load_config(project_root=Path.cwd(), data_dir=default_data_dir())
+    provider, model = build_provider(
+        config,
+        provider_key=selection.provider_key,
+        model_key=selection.model_key,
+    )
+    request = ModelRequest(
+        request_id=f"api_{uuid4().hex}",
+        model=model,
+        system=(
+            f"当前使用的模型是 {selection.provider_key}/{selection.model_id}。"
+            "请用中文简洁回答用户。"
+        ),
+        messages=(Message(role="user", content="你好，你是什么模型"),),
+        timeout_seconds=60,
+    )
+    try:
+        response = asyncio.run(provider.complete(request))
+    except ProviderError as exc:
+        return False, str(exc)
+    text = response.text.strip() or "[empty response]"
+    return True, text
+
+
+def _interactive_terminal() -> bool:
+    try:
+        return sys.stdin.isatty() and sys.stdout.isatty()
+    except (AttributeError, ValueError):
+        return False
+
+
+def _select(message, choices, default=None):
+    if green_check_select is not None:
+        return green_check_select(message, choices, default)
+    return questionary.select(message, choices=choices, default=default)
+
+
+def _fetch_upstream_models(preset: ProviderPreset, api_key: str) -> list[str]:
+    if api_key:
+        return list_models(preset.provider_type, preset.base_url, api_key)
+    env_value = os.environ.get(preset.api_key_env or "") if preset.api_key_env else ""
+    if env_value:
+        return list_models(preset.provider_type, preset.base_url, env_value)
+    return []
+
+
+def _interactive_wizard() -> ProviderSelection | None:
+    mode = _select(
+        "请选择配置方式",
+        choices=[
+            questionary.Choice(title="官方厂商 (Official)", value="official"),
+            questionary.Choice(title="自定义 Provider (Custom)", value="custom"),
+            questionary.Choice(title="手动 Endpoint (Manual)", value="manual"),
+        ],
+    ).ask()
+    if mode is None:
+        return None
+    if mode == "custom":
+        return _custom_wizard()
+    if mode == "manual":
+        return _manual_wizard()
+    return _official_wizard()
+
+
+def _official_wizard() -> ProviderSelection | None:
+    config = _read_global_config_safe()
+    choices = [
+        questionary.Choice(
+            title=f"{preset.label} ({_active_model(config, preset.key) or preset.default_model})",
+            value=preset.key,
+        )
+        for preset in PRESETS
+    ]
+    provider_key = _select("请选择模型厂商", choices).ask()
+    if provider_key is None:
+        return None
+    preset = next(item for item in PRESETS if item.key == provider_key)
+    if preset.key == "custom":
+        return _custom_wizard()
+    if preset.key == "local":
+        return _local_wizard(preset)
+
+    api_key, api_key_env = _ask_api_key(preset)
+    if api_key is None and api_key_env is None:
+        return None
+    upstream_models = _fetch_upstream_models(preset, api_key or "")
+    if not upstream_models:
+        typer.echo("未能从上游获取模型列表，将使用默认/已配置模型。")
+    model_id = _ask_model(config, preset.key, preset.default_model, upstream_models)
+    if model_id is None:
+        return None
+    return ProviderSelection(
+        provider_key=preset.key,
+        provider_type=preset.provider_type,
+        base_url=preset.base_url,
+        model_id=model_id,
+        context_window=preset.context_window,
+        api_key=api_key,
+        api_key_env=api_key_env,
+    )
+
+
+def _local_wizard(preset: ProviderPreset) -> ProviderSelection | None:
+    config = _read_global_config_safe()
+    upstream_models = _fetch_upstream_models(preset, "local")
+    if not upstream_models:
+        typer.echo("未能从上游获取模型列表，将使用默认/已配置模型。")
+    model_id = _ask_model(config, preset.key, preset.default_model, upstream_models)
+    if model_id is None:
+        return None
+    return ProviderSelection(
+        provider_key=preset.key,
+        provider_type=preset.provider_type,
+        base_url=preset.base_url,
+        model_id=model_id,
+        context_window=preset.context_window,
+        api_key="local",
+    )
+
+
+def _custom_wizard() -> ProviderSelection | None:
+    name = questionary.text("Provider 名称", default="my-provider").ask()
+    if not name or not name.strip():
+        return None
+    name = name.strip()
+    protocol = _select(
+        "协议",
+        choices=[
+            questionary.Choice(title=PROTOCOL_LABELS[key], value=key)
+            for key in ("openai-compatible", "anthropic", "responses")
+        ],
+    ).ask()
+    if protocol is None:
+        return None
+    default_url = (
+        "http://localhost:8000/v1"
+        if protocol == "openai-compatible"
+        else "https://api.example.com"
+    )
+    base_url = questionary.text("Base URL", default=default_url).ask()
+    if not base_url or not base_url.strip():
+        return None
+    api_key = questionary.password(
+        "API Key（本地服务可留空）", default=""
+    ).ask()
+    if api_key is None:
+        return None
+    api_key = api_key.strip() or "local"
+    model_id = questionary.text("模型 ID").ask()
+    if not model_id or not model_id.strip():
+        return None
+    context_window = _ask_context_window(128_000)
+    if context_window is None:
+        return None
+    return ProviderSelection(
+        provider_key=name,
+        provider_type=protocol,
+        base_url=base_url.strip(),
+        model_id=model_id.strip(),
+        context_window=context_window,
+        api_key=api_key,
+    )
+
+
+def _manual_wizard() -> ProviderSelection | None:
+    name = questionary.text("Provider 名称", default="manual").ask()
+    if not name or not name.strip():
+        return None
+    base_url = questionary.text("Base URL", default="http://localhost:8000/v1").ask()
+    if not base_url or not base_url.strip():
+        return None
+    model_id = questionary.text("模型 ID").ask()
+    if not model_id or not model_id.strip():
+        return None
+    api_key = questionary.password("API Key", default="").ask()
+    if api_key is None:
+        return None
+    api_key = api_key.strip() or "local"
+    context_window = _ask_context_window(128_000)
+    if context_window is None:
+        return None
+    return ProviderSelection(
+        provider_key=name.strip(),
+        provider_type="openai-compatible",
+        base_url=base_url.strip(),
+        model_id=model_id.strip(),
+        context_window=context_window,
+        api_key=api_key,
+    )
+
+
+def _ask_model(
+    config: dict,
+    provider_key: str,
+    default_model: str,
+    upstream_models: list[str] | None = None,
+) -> str | None:
+    configured = _configured_model_ids(config, provider_key)
+    models = list(dict.fromkeys([*(upstream_models or []), default_model, *configured]))
+    choices = [questionary.Choice(title=model, value=model) for model in models]
+    choices.append(questionary.Choice(title="输入其他模型 ID...", value=_MANUAL_CUSTOM))
+    selected = _select("请选择模型", choices).ask()
+    if selected is None:
+        return None
+    if selected != _MANUAL_CUSTOM:
+        return selected
+    model_id = questionary.text("模型 ID", default=default_model).ask()
+    return model_id.strip() if model_id and model_id.strip() else None
+
+
+def _ask_api_key(preset: ProviderPreset) -> tuple[str | None, str | None]:
+    saved = CredentialStore().get(preset.key) or ""
+    env_value = os.environ.get(preset.api_key_env or "") if preset.api_key_env else ""
+    hints: list[str] = []
+    if saved:
+        hints.append(f"已保存密钥：{_secret_fingerprint(saved)}")
+    if preset.api_key_env:
+        if env_value:
+            hints.append(f"环境变量 ${preset.api_key_env} 已设置，可留空使用它")
+        else:
+            hints.append(f"可留空使用环境变量 ${preset.api_key_env}")
+    if saved or env_value:
+        hints.append("直接输入将覆盖已保存密钥")
+    message = "请输入 API Key"
+    if hints:
+        message += "\n" + "\n".join(hints)
+
+    while True:
+        value = questionary.password(message, default="").ask()
+        if value is None:
+            return None, None
+        value = value.strip()
+        if value:
+            return value, None
+        if env_value:
+            return "", preset.api_key_env
+        if saved:
+            return saved, None
+        typer.echo("API Key 不能为空", err=True)
+
+
+def _ask_context_window(default: int) -> int | None:
+    value = questionary.text("上下文窗口", default=str(default)).ask()
+    if value is None:
+        return None
+    try:
+        parsed = int(value.strip())
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _read_global_config_safe() -> dict:
+    try:
+        return read_global_config()
+    except (OSError, ValueError):
+        return {}
+
+
+def _active_model(config: dict, provider_key: str) -> str:
+    defaults = config.get("defaults") if isinstance(config.get("defaults"), dict) else {}
+    if defaults.get("provider") != provider_key:
+        return ""
+    model_key = defaults.get("model")
+    models = config.get("models") if isinstance(config.get("models"), dict) else {}
+    entry = models.get(model_key)
+    if isinstance(entry, dict) and entry.get("model"):
+        return str(entry["model"])
+    return str(model_key) if model_key else ""
+
+
+def _configured_model_ids(config: dict, provider_key: str) -> list[str]:
+    models = config.get("models") if isinstance(config.get("models"), dict) else {}
+    result: list[str] = []
+    for key, entry in models.items():
+        if isinstance(entry, dict) and entry.get("provider") == provider_key:
+            result.append(str(entry.get("model") or key))
+    return result
+
+
+def _secret_fingerprint(secret: str) -> str:
+    value = secret.strip()
+    if len(value) < 15:
+        return "********"
+    return f"{value[:6]}...{value[-4:]}"
+
+
+def _legacy_wizard() -> ProviderSelection | None:
     preset = _select_preset()
     provider_key = preset.key
     if preset.key == "custom":
@@ -153,56 +592,13 @@ def api_command(
         typer.echo("模型 ID 不能为空", err=True)
         raise typer.Exit(code=2)
 
-    model_key = f"{provider_key}/{model_id}"
-    try:
-        CredentialStore().set(provider_key, api_key)
-        config_path = update_global_config(
-            {
-                "providers": {
-                    provider_key: {
-                        "type": preset.provider_type,
-                        "base_url": base_url,
-                        "credential_ref": f"local://{provider_key}",
-                    }
-                },
-                "models": {
-                    model_key: {
-                        "provider": provider_key,
-                        "model": model_id,
-                        "context_window": context_window,
-                    }
-                },
-                "defaults": {
-                    "provider": provider_key,
-                    "model": model_key,
-                },
-            }
-        )
-    except (OSError, ValueError, RuntimeError) as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=2) from exc
-
-    emit_result(
-        "api",
-        data={
-            "provider": provider_key,
-            "base_url": base_url,
-            "model": model_id,
-            "model_key": model_key,
-            "config_path": str(config_path),
-        },
-        json_output=json_output,
-        no_color=no_color,
-        quiet=quiet,
-        verbose=verbose,
-        human_lines=(
-            f"Provider: {provider_key}",
-            f"Base URL: {base_url}",
-            f"Model: {model_id}",
-            f"Config: {config_path}",
-            "API Key 已保存到本机凭证文件。",
-            "运行 algocode test 验证连接。",
-        ),
+    return ProviderSelection(
+        provider_key=provider_key,
+        provider_type=preset.provider_type,
+        base_url=base_url,
+        model_id=model_id,
+        context_window=context_window,
+        api_key=api_key,
     )
 
 
@@ -218,3 +614,13 @@ def _select_preset() -> ProviderPreset:
         if 1 <= selected <= len(PRESETS):
             return PRESETS[selected - 1]
         typer.echo(f"请输入 1 到 {len(PRESETS)} 之间的数字。", err=True)
+
+
+def default_data_dir() -> Path:
+    from algocode.storage.paths import default_data_dir as _default_data_dir
+
+    return _default_data_dir()
+
+
+
+

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections.abc import Iterable
 from typing import Annotated, Any
 
@@ -24,6 +25,25 @@ VerboseOption = Annotated[
     bool,
     typer.Option("--verbose", help="Emit diagnostic details to stderr."),
 ]
+ProgressOption = Annotated[
+    bool | None,
+    typer.Option(
+        "--progress/--no-progress",
+        help="Force the live stage rail on or off.",
+    ),
+]
+YesOption = Annotated[
+    bool,
+    typer.Option("--yes", "-y", help="Skip the confirmation prompt."),
+]
+
+
+def is_interactive() -> bool:
+    """Return True when both stdin and stdout are attached to a terminal."""
+    try:
+        return sys.stdin.isatty() and sys.stdout.isatty()
+    except (AttributeError, ValueError):
+        return False
 
 
 def emit_result(

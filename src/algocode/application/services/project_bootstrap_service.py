@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -88,6 +89,15 @@ if __name__ == "__main__":
 
 
 @dataclass(frozen=True, slots=True)
+class BootstrapEvent:
+    """A progress event emitted while bootstrapping a project."""
+
+    kind: str
+    stage: str
+    detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class BootstrapResult:
     project: object
     task: object
@@ -100,6 +110,11 @@ class BootstrapResult:
     generated_files: tuple[str, ...]
     bootstrap_status: str
     message: str = ""
+    contract_confidence: float | None = None
+    contract_source: str = ""
+    contract_path: str = ""
+    entrypoint: str = ""
+    correctness_run_id: str = ""
 
 
 class ProjectBootstrapService:
@@ -114,24 +129,34 @@ class ProjectBootstrapService:
         *,
         language: Language | str = Language.AUTO,
         objective: str | None = None,
+        on_event: Callable[[BootstrapEvent], None] | None = None,
     ) -> BootstrapResult:
+        emit = self._emitter(on_event)
+        emit("start", "scan")
         root = Path(path).expanduser().resolve()
         layout = ProjectLayout.from_root(root)
         root.mkdir(parents=True, exist_ok=True)
         git_initialized = False
         try:
             repository = await GitRepository.discover(root)
+            emit("detail", "scan", "Git 仓库已就绪")
         except GitError:
             repository = await GitRepository.initialize(root)
             git_initialized = True
+            emit("detail", "scan", "已执行 git init")
 
         detected = await self._context.language_registry.detect(root)
         selected_language = self._context.language_registry.resolve_language(
             language,
             detected,
         )
+        entrypoint = self._entrypoint_name(root, selected_language)
+        emit("detail", "scan", f"检测语言：{selected_language.value}")
         self._write_project_config(root, selected_language)
         self._write_state_gitignore(layout)
+        emit("finish", "scan", selected_language.value)
+
+        emit("start", "contract", "生成行为契约（可能需要数分钟）")
         discovery = ContractDiscoveryService(self._context)
         compiler = ContractCompiler(self._context)
         contract = await discovery.discover(
@@ -142,8 +167,11 @@ class ProjectBootstrapService:
         contract_failure: str | None = None
         previous_source: str | None = None
         for attempt in range(3):
+            emit("detail", "contract", f"编译契约并运行契约测试（第 {attempt + 1}/3 次）")
             compiled_objective = compiler.compile(root, contract, language=selected_language.value)
-            contract_failure = await self._run_contract_test(root, language=selected_language.value)
+            contract_failure = await self._run_contract_test(
+                root, language=selected_language.value
+            )
             if contract_failure is None:
                 break
             if not contract.contract_test_source or attempt == 2:
@@ -154,6 +182,7 @@ class ProjectBootstrapService:
                     "\n\nThe previous repair returned exactly the same source. "
                     "Replace the incorrect expected-state logic instead of returning it again."
                 )
+            emit("detail", "contract", f"修复契约测试（第 {attempt + 1}/3 次）")
             repaired = await discovery.repair_contract_test(
                 contract,
                 root=root,
@@ -163,6 +192,7 @@ class ProjectBootstrapService:
             previous_source = contract.contract_test_source
             contract = repaired
         if contract_failure is not None:
+            emit("detail", "contract", "回退到参考一致性契约测试")
             fallback_source = (
                 _reference_conformance_test_source_cpp(root)
                 if selected_language is Language.CPP
@@ -170,9 +200,18 @@ class ProjectBootstrapService:
             )
             contract = contract.model_copy(update={"contract_test_source": fallback_source})
             compiled_objective = compiler.compile(root, contract, language=selected_language.value)
-            contract_failure = await self._run_contract_test(root, language=selected_language.value)
+            contract_failure = await self._run_contract_test(
+                root, language=selected_language.value
+            )
         if contract_failure is not None and contract.contract_test_source:
             raise RuntimeError(f"generated contract test failed: {contract_failure}")
+        if contract.contract_source == "deterministic-fallback":
+            emit(
+                "note",
+                "contract",
+                "未配置可用模型，已使用确定性回退契约；运行 algocode api 可提升契约质量",
+            )
+        emit("finish", "contract", f"confidence {contract.confidence:.2f}")
         effective_objective = (
             objective or compiled_objective or _infer_objective(root, selected_language)
         )
@@ -180,12 +219,16 @@ class ProjectBootstrapService:
         generated: tuple[str, ...] = ()
         bootstrap_status = "skipped"
         bootstrap_message = ""
+        emit("start", "specs")
         if selected_language is Language.PYTHON:
             generated = await self._bootstrap_python(root)
             bootstrap_status = "completed"
         elif selected_language is Language.CPP:
             generated = await self._bootstrap_cpp(root)
             bootstrap_status = "completed"
+        else:
+            emit("note", "specs", "未识别项目语言，已跳过规格生成")
+        emit("finish", "specs", f"{len(generated)} 个文件" if generated else "跳过")
 
         commit_created = await repository.commit_all("algocode: initialize project")
         project = await self._context.project_service.register(root, write_config=False)
@@ -193,30 +236,43 @@ class ProjectBootstrapService:
             objective=effective_objective,
             project_id=project.id,
         )
+        emit("start", "baseline")
         baseline = await self._context.baseline_service.capture(task.id)
+        emit("finish", "baseline", f"git {str(project.git_revision)[:7]}")
 
         correctness = None
         correctness_run = None
         benchmark_run = None
         benchmark_result = None
         if generated:
+            emit("start", "correctness")
             correctness_run, correctness = await self._context.correctness_service.run_baseline(
                 task.id,
                 load_correctness_spec(layout.correctness_spec_path),
             )
             if not correctness.passed:
+                emit("fail", "correctness", f"kind={correctness.failure_kind}")
                 raise RuntimeError(
                     "generated correctness specification failed: "
                     f"kind={correctness.failure_kind}, message={correctness.message!r}, "
                     f"cases={correctness.cases!r}"
                 )
+            emit(
+                "finish",
+                "correctness",
+                f"{correctness.passed_cases}/{len(correctness.cases)} passed",
+            )
+            emit("start", "benchmark")
             benchmark_run, benchmark_result = await self._context.benchmark_service.run_baseline(
                 task.id,
                 load_benchmark_spec(layout.benchmark_spec_path),
             )
             if benchmark_run.status is not BenchmarkStatus.COMPLETED or not benchmark_result.valid:
+                emit("fail", "benchmark", "generated benchmark specification failed")
                 raise RuntimeError("generated benchmark specification failed")
+            emit("finish", "benchmark", "valid")
 
+        emit("start", "persist")
         write_bootstrap_state(
             project_root=root,
             data_dir=self._context.data_dir,
@@ -245,6 +301,7 @@ class ProjectBootstrapService:
             benchmark_run=benchmark_run,
         )
 
+        emit("finish", "persist", f"task {str(task.id)[:8]}")
         return BootstrapResult(
             project=project,
             task=task,
@@ -257,7 +314,41 @@ class ProjectBootstrapService:
             generated_files=generated,
             bootstrap_status=bootstrap_status,
             message=bootstrap_message,
+            contract_confidence=contract.confidence,
+            contract_source=contract.contract_source,
+            contract_path=str(layout.contract_path),
+            entrypoint=entrypoint,
+            correctness_run_id=(
+                str(correctness_run.id) if correctness_run is not None else ""
+            ),
         )
+
+    @staticmethod
+    def _emitter(on_event: Callable[[BootstrapEvent], None] | None) -> Callable[..., None]:
+        def emit(kind: str, stage: str, detail: str = "") -> None:
+            if on_event is None:
+                return
+            try:
+                on_event(BootstrapEvent(kind=kind, stage=stage, detail=detail))
+            except Exception:  # noqa: BLE001 - progress must never break bootstrap
+                pass
+
+        return emit
+
+    @staticmethod
+    def _entrypoint_name(root: Path, language: Language) -> str:
+        try:
+            if language is Language.PYTHON:
+                return _python_entrypoint(root).name
+            if language is Language.CPP:
+                return _cpp_entrypoint(root).name
+        except RuntimeError as exc:
+            raise RuntimeError(
+                f"{exc}. Add test.py/main.py (or test.cpp/main.cpp) at the project root, "
+                "or run algocode init --no-bootstrap to register without bootstrapping."
+            ) from exc
+        return ""
+
 
     async def _verify_persisted_state(
         self,

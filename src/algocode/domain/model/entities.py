@@ -104,6 +104,7 @@ class Experiment:
     started_at: datetime | None = None
     completed_at: datetime | None = None
     invalidation_reason: str | None = None
+    created_at: datetime = field(default_factory=utcnow)
 
 
 @dataclass(slots=True)

@@ -5,10 +5,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from algocode.config.model import SandboxConfig
 from algocode.domain.model import Language
 from algocode.languages.cpp import CppLanguageAdapter
 from algocode.languages.python import PythonLanguageAdapter
 from algocode.languages.types import BuildProfile
+from algocode.sandbox.runner import SandboxProcessRunner
 
 
 class LanguageAdapterTests(unittest.IsolatedAsyncioTestCase):
@@ -36,7 +38,9 @@ class LanguageAdapterTests(unittest.IsolatedAsyncioTestCase):
                 "#include <iostream>\nint main() { std::cout << 42; }\n",
                 encoding="utf-8",
             )
-            adapter = CppLanguageAdapter()
+            adapter = CppLanguageAdapter(
+                SandboxProcessRunner(SandboxConfig(backend="native"))
+            )
 
             info = await adapter.detect(root)
             result = await adapter.build(root, BuildProfile(timeout_seconds=30))

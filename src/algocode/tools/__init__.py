@@ -2,6 +2,7 @@
 
 from algocode.tools.builtins.actions import register_action_tools
 from algocode.tools.builtins.filesystem import register_read_tools
+from algocode.tools.builtins.shell import register_shell_tool, shell_definition
 from algocode.tools.registry import ToolRegistry
 
 
@@ -23,4 +24,9 @@ def build_default_registry(
     return registry
 
 
-__all__ = ["ToolRegistry", "build_default_registry"]
+__all__ = [
+    "ToolRegistry",
+    "build_default_registry",
+    "register_shell_tool",
+    "shell_definition",
+]

@@ -51,11 +51,56 @@ class SandboxRunnerTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch("algocode.sandbox.runner._docker_ready", return_value=False),
             patch("algocode.sandbox.runner._wsl_ready", return_value=True),
+            patch("algocode.sandbox.runner._wsl_toolchain_ready", return_value=True),
             patch("algocode.sandbox.runner.os.name", "nt"),
         ):
             runner = SandboxProcessRunner(SandboxConfig(backend="auto"))
 
         self.assertEqual(runner.backend, "wsl2")
+
+    def test_auto_falls_back_from_docker_to_wsl_when_docker_toolchain_is_missing(self) -> None:
+        with (
+            patch("algocode.sandbox.runner._docker_ready", return_value=True),
+            patch("algocode.sandbox.runner._docker_toolchain_ready", return_value=False),
+            patch("algocode.sandbox.runner._wsl_ready", return_value=True),
+            patch("algocode.sandbox.runner._wsl_toolchain_ready", return_value=True),
+        ):
+            runner = SandboxProcessRunner(SandboxConfig(backend="auto"))
+
+        self.assertEqual(runner.backend, "wsl2")
+
+    def test_auto_falls_back_to_native_when_wsl_toolchain_is_missing(self) -> None:
+        with (
+            patch("algocode.sandbox.runner._docker_ready", return_value=False),
+            patch("algocode.sandbox.runner._wsl_ready", return_value=True),
+            patch("algocode.sandbox.runner._wsl_toolchain_ready", return_value=False),
+            patch("algocode.sandbox.runner._native_toolchain_ready", return_value=True),
+        ):
+            runner = SandboxProcessRunner(SandboxConfig(backend="auto"))
+
+        self.assertEqual(runner.backend, "native")
+
+    def test_auto_disables_when_no_toolchain_is_available(self) -> None:
+        with (
+            patch("algocode.sandbox.runner._docker_ready", return_value=False),
+            patch("algocode.sandbox.runner._wsl_ready", return_value=False),
+            patch("algocode.sandbox.runner._native_toolchain_ready", return_value=False),
+        ):
+            runner = SandboxProcessRunner(SandboxConfig(backend="auto"))
+
+        self.assertEqual(runner.backend, "disabled")
+        self.assertIn("no docker/wsl/native", runner.backend_reason)
+
+    def test_explicit_docker_does_not_degrade_to_wsl(self) -> None:
+        with (
+            patch("algocode.sandbox.runner._docker_ready", return_value=True),
+            patch("algocode.sandbox.runner._docker_toolchain_ready", return_value=False),
+            patch("algocode.sandbox.runner._wsl_ready", return_value=True),
+            patch("algocode.sandbox.runner._wsl_toolchain_ready", return_value=True),
+        ):
+            runner = SandboxProcessRunner(SandboxConfig(backend="docker"))
+
+        self.assertEqual(runner.backend, "docker")
 
     def test_wsl_backend_probe_uses_flat_argument_tuple(self) -> None:
         with (

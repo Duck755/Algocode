@@ -81,14 +81,26 @@ class CandidateProjection:
         ):
             self._set_status(connection, str(event.payload["target_id"]), CandidateStatus.REJECTED)
             return
-        if event.type is EventType.CANDIDATE_SELECTED or (
-            event.type is EventType.DECISION_MADE and event.payload.get("outcome") == "accepted"
-        ):
+        if event.type is EventType.CANDIDATE_SELECTED:
             candidate_id = str(
                 event.payload.get("candidate_id", event.payload.get("target_id", ""))
             )
             if candidate_id:
                 self._set_status(connection, candidate_id, CandidateStatus.SELECTED)
+            return
+        if event.type is EventType.DECISION_MADE:
+            candidate_id = str(
+                event.payload.get("candidate_id", event.payload.get("target_id", ""))
+            )
+            if not candidate_id:
+                return
+            outcome = event.payload.get("outcome")
+            if outcome == "accepted":
+                self._set_status(connection, candidate_id, CandidateStatus.SELECTED)
+            elif outcome == "rejected":
+                self._set_status(connection, candidate_id, CandidateStatus.REJECTED)
+            elif outcome == "inconclusive":
+                self._set_status(connection, candidate_id, CandidateStatus.INCONCLUSIVE)
             return
         if event.type is EventType.CANDIDATE_APPLIED:
             self._set_status(

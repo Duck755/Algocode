@@ -84,7 +84,12 @@ class RuntimeConfig(BaseModel):
     max_steps_per_phase: int = Field(default=30, gt=0)
     max_tool_calls_per_phase: int = Field(default=50, gt=0)
     max_candidates: int = Field(default=3, gt=0)
+    max_population: int = Field(default=6, gt=0)
+    max_evals: int = Field(default=50, gt=0)
+    max_iterations: int = Field(default=3, gt=0)
+    cost_budget_usd: float | None = Field(default=None, ge=0)
     network: bool = False
+    run_seed: int = Field(default=0, ge=0)
 
 
 class CorrectnessConfig(BaseModel):

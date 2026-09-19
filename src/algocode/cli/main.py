@@ -15,6 +15,7 @@ from algocode.cli.commands.doctor import doctor_command
 from algocode.cli.commands.eval import eval_app
 from algocode.cli.commands.experiment import experiment_app
 from algocode.cli.commands.gate import gate_app
+from algocode.cli.commands.gc import gc_command
 from algocode.cli.commands.init import init_command
 from algocode.cli.commands.model import model_command
 from algocode.cli.commands.optimize import optimize_command
@@ -35,6 +36,7 @@ app = typer.Typer(
 app.command("init", help="Register a local Git project.")(init_command)
 app.command("api", help="Configure a model provider and API key.")(api_command)
 app.command("doctor", help="Check the local Algocode runtime environment.")(doctor_command)
+app.command("gc", help="Remove expired local artifacts and logs.")(gc_command)
 app.command("test", help="Send a minimal request to the selected model.")(test_command)
 app.command("model", help="Select the default model for the current project.")(model_command)
 app.command("baseline", help="Capture a task baseline.")(baseline_command)

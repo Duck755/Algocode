@@ -109,6 +109,7 @@ class ReportService:
             payload = await self._benchmark_service.read_result(run)
             if run.target_kind == "candidate":
                 comparisons.append(payload.get("comparison") or {})
+        statistical_evidence, tradeoffs, limitations = _report_insights(comparisons)
         report_id = f"report_{uuid4().hex}"
         payload: dict[str, object] = {
             "schemaVersion": 1,
@@ -155,6 +156,7 @@ class ReportService:
                 for run in benchmark_runs
             ],
             "comparison": comparisons[-1] if comparisons else None,
+            "statisticalEvidence": statistical_evidence,
             "decision": decisions[-1] if decisions else None,
             "correctnessEvidence": [
                 {
@@ -180,8 +182,8 @@ class ReportService:
                 }
                 for run in benchmark_runs
             ],
-            "tradeoffs": [],
-            "limitations": [],
+            "tradeoffs": tradeoffs,
+            "limitations": limitations,
             "artifactRefs": artifact_refs,
         }
         for key in ("baseline", "correctnessEvidence", "benchmarkEvidence"):
@@ -233,6 +235,55 @@ class ReportService:
     async def _next_seq(self, aggregate_id: str) -> int:
         events = await self._event_store.read(aggregate_id)
         return events[-1].seq + 1 if events else 1
+
+
+def _report_insights(
+    comparisons: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], list[str], list[str]]:
+    statistical_evidence: list[dict[str, object]] = []
+    tradeoffs: list[str] = []
+    limitations: list[str] = []
+    for comparison in comparisons:
+        improvement = _as_float(comparison.get("improvement_percent"))
+        valid = comparison.get("valid") is True
+        significant = comparison.get("statistically_significant")
+        p_value = comparison.get("p_value")
+        baseline_median = _as_float(comparison.get("baseline_median"))
+        candidate_median = _as_float(comparison.get("candidate_median"))
+        statistical_evidence.append(
+            {
+                "valid": bool(valid),
+                "improvementPercent": improvement,
+                "baselineMedian": baseline_median,
+                "candidateMedian": candidate_median,
+                "statisticallySignificant": significant,
+                "pValue": p_value,
+            }
+        )
+        if improvement is not None:
+            direction = "faster" if improvement > 0 else "slower"
+            tradeoffs.append(
+                f"wall_time {direction} by {improvement:.4f}% "
+                f"({baseline_median} -> {candidate_median})"
+            )
+        if not valid:
+            limitations.append("benchmark comparison is invalid")
+        elif significant is False:
+            limitations.append("improvement is not statistically significant")
+        elif p_value is None:
+            limitations.append("no statistical significance evidence was produced")
+    if not comparisons:
+        limitations.append("no candidate benchmark comparison was produced")
+    if not tradeoffs:
+        tradeoffs.append("no verified tradeoff evidence available")
+    return statistical_evidence, tradeoffs, limitations
+
+
+def _as_float(value: object) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _write_root_markdown(project_root: str | Path, markdown: str) -> Path:
@@ -320,6 +371,35 @@ def render_markdown(payload: dict[str, object]) -> str:
                 if decision
                 else "- No decision recorded."
             ),
+            "",
+            "## Tradeoffs",
+            "",
+        ]
+    )
+    tradeoffs = payload.get("tradeoffs") or []
+    lines.extend(f"- {item}" for item in tradeoffs) if tradeoffs else lines.append(
+        "- None recorded."
+    )
+    lines.extend(
+        [
+            "",
+            "## Statistical Evidence",
+            "",
+        ]
+    )
+    statistical_evidence = payload.get("statisticalEvidence") or []
+    for evidence in statistical_evidence:
+        lines.append(
+            "- "
+            f"valid={evidence.get('valid')}, "
+            f"improvement={evidence.get('improvementPercent')}%, "
+            f"significant={evidence.get('statisticallySignificant')}, "
+            f"p_value={evidence.get('pValue')}"
+        )
+    if not statistical_evidence:
+        lines.append("- None recorded.")
+    lines.extend(
+        [
             "",
             "## Limitations",
             "",
