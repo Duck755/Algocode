@@ -112,7 +112,7 @@ pip install algocode-agent
 algocode api
 algocode test
 ```
-![img.png](docs/picture/img_ 5.png)
+![img_ 5.png](docs/picture/img_%205.png)
 `algocode api` 用于选择模型厂商、Base URL、模型 ID 和 API Key。API Key 保存在本机凭证文件中，不会写入项目配置。
 
 切换默认模型：
