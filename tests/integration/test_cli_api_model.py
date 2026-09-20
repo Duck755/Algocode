@@ -37,6 +37,9 @@ class CliApiModelTestTests(unittest.TestCase):
                 ), patch(
                     "algocode.cli.commands.model.default_data_dir",
                     return_value=data_dir,
+                ), patch(
+                    "algocode.cli.commands.model.list_models",
+                    return_value=[],
                 ):
                     result = self.runner.invoke(
                         app,
@@ -66,6 +69,62 @@ class CliApiModelTestTests(unittest.TestCase):
             self.assertEqual(
                 CredentialStore(data_dir / "credentials.json").get("deepseek"),
                 "sk-test-key",
+            )
+
+    def test_model_command_uses_upstream_models(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "project"
+            root.mkdir()
+            data_dir = Path(directory) / "data"
+            data_dir.mkdir()
+            config_path = data_dir / "config.yaml"
+            config_path.write_text(
+                """
+providers:
+  mock:
+    type: openai-compatible
+    base_url: https://example.test/v1
+    credential_ref: local://mock
+models:
+  mock/old:
+    provider: mock
+    model: old
+    context_window: 4096
+defaults:
+  provider: mock
+  model: mock/old
+""",
+                encoding="utf-8",
+            )
+            CredentialStore(data_dir / "credentials.json").set("mock", "mock-key")
+
+            previous = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch(
+                    "algocode.cli.commands.model.default_data_dir",
+                    return_value=data_dir,
+                ), patch(
+                    "algocode.config.global_file.default_data_dir",
+                    return_value=data_dir,
+                ), patch(
+                    "algocode.cli.commands.model.resolve_api_key",
+                    return_value="mock-key",
+                ), patch(
+                    "algocode.cli.commands.model.list_models",
+                    return_value=["new-model", "old"],
+                ):
+                    result = self.runner.invoke(app, ["model"], input="1\n")
+            finally:
+                os.chdir(previous)
+
+            self.assertEqual(result.exit_code, 0, result.output)
+            self.assertIn("new-model", result.output)
+            config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+            self.assertEqual(config["defaults"]["model"], "mock/new-model")
+            self.assertEqual(
+                config["models"]["mock/new-model"]["model"],
+                "new-model",
             )
 
     def test_test_command_uses_selected_model_and_sends_system_variable(self) -> None:

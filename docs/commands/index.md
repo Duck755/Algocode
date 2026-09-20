@@ -19,6 +19,8 @@ algocode test
 | `algocode doctor` | 检查 Python、Git、SQLite、Sandbox、C++ 编译器和数据目录。 | 安装后或命令运行异常时。 |
 | `algocode model` | 切换当前项目默认模型。 | 临时或长期调整默认模型。 |
 
+`model` 会尝试从当前 Provider 的上游模型接口刷新列表，并与已配置模型合并；上游不可用时回退到本地配置。
+
 ## 项目初始化
 
 ```bash

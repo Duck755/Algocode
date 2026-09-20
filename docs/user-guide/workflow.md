@@ -149,7 +149,7 @@ Benchmark 会：
 - 记录 Warmup、Repeats、Median、Mean、Stddev 和 Variation。
 - 使用 Environment Hash 和 Comparison Key 避免错误比较。
 - 优先按同一 input + repeat 配对计算提升、bootstrap 置信区间和置换检验。
-- 使用 MAD 鲁棒波动判定样本质量；原始波动超限但鲁棒波动正常时只记录 warning。
+- 使用 MAD 鲁棒波动判定样本质量；原始标准差不再参与用户可见警告或决策。
 
 如果 `benchmark.yaml` 的 `inputs` 为不同输入声明了 `size`，每个输入会单独统计，
 整体改善取各输入改善的中位数，波动取最差的单输入波动。

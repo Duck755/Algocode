@@ -134,9 +134,6 @@ def review_command(
             benchmark_lines += (
                 f"Improvement CI: [{comparison.get('ci_lower')}, {comparison.get('ci_upper')}]",
             )
-        warnings = comparison.get("quality_warnings")
-        if isinstance(warnings, (list, tuple)):
-            benchmark_lines += tuple(f"Benchmark warning: {item}" for item in warnings)
     emit_result(
         "review",
         data=data,

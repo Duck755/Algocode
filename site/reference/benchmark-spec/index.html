@@ -1695,8 +1695,7 @@
 </tr>
 </tbody>
 </table>
-<p><code>max_variation_percent</code> 使用 MAD 鲁棒波动判断 comparison 是否有效。原始标准差波动
-仍会写入报告，但单个系统调度尖峰只会产生质量 warning，不会单独否定整组结果。
+<p><code>max_variation_percent</code> 使用 MAD 鲁棒波动判断 comparison 是否有效。原始标准差不会参与有效性判断、Decision 或用户可见警告。
 <code>algocode init</code> 生成 process/wall_time 基准时默认写入 <code>15.0</code>。</p>
 <h2 id="metric"><code>metric</code><a class="headerlink" href="#metric" title="Permanent link">&para;</a></h2>
 <h2 id="inputs"><code>inputs</code><a class="headerlink" href="#inputs" title="Permanent link">&para;</a></h2>

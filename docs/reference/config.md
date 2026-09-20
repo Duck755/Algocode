@@ -152,7 +152,7 @@ Correctness 默认策略。
 | `minMedianImprovementPercent` | float | `2.0` | 最小配对 Median 提升百分比。 |
 | `maxPeakMemoryRegressionPercent` | float / null | `null` | 允许的最大峰值内存回退百分比。 |
 | `maxCompileTimeRegressionPercent` | float / null | `null` | 允许的最大编译时间回退百分比。 |
-| `maxVariationPercent` | float / null | `15.0` | 允许的最大 MAD 鲁棒波动百分比；原始波动只作为质量警告。 |
+| `maxVariationPercent` | float / null | `15.0` | 允许的最大 MAD 鲁棒波动百分比；原始标准差不会产生用户可见警告。 |
 
 ## `storage`
 

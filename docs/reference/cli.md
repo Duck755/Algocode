@@ -58,6 +58,8 @@ algocode doctor --json
 
 切换当前项目默认模型。
 
+命令会从当前 Provider 的上游 `/models` 接口获取可用模型，并与本地已配置模型合并展示。上游不可用时自动回退到本地配置，并保留手动输入模型 ID。
+
 ```bash
 algocode model
 algocode model --provider openai
@@ -139,7 +141,7 @@ optimize · completed · 耗时 4m04s
 └─────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-当 Benchmark 使用配对样本时，证据链和 JSON 还会包含配对置信区间、鲁棒波动和 `quality_warnings`。原始标准差波动超限但鲁棒波动正常时，不会直接把 comparison 判为无效。
+当 Benchmark 使用配对样本时，证据链和 JSON 会包含配对置信区间和 MAD 鲁棒波动。原始标准差不会参与 Decision，也不会产生用户可见 warning。
 
 交互式终端下还会输出下一步菜单（查看候选改动 / 应用候选 / 生成任务报告 / 重新规划重试）。
 

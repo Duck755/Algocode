@@ -23,65 +23,38 @@
 
 ---
 
-## 它能做什么
+## Algocode 是什么
 
-把一个可以通过命令运行的 C++ / Python 项目交给 Algocode：
+Algocode 是一款面向 C++ / Python 的可验证算法优化 Agent CLI 工具。它通过契约、正确性和性能证据驱动代码优化，只需配置一个模型端点即可使用。
+它读取 Git 仓库和项目入口，通过具备工具调用能力的 Agent 分析算法热点、问题结构和复杂度，并在隔离的 Git Worktree 中生成候选实现。Agent 可以读取完整文件、搜索代码库、检查其他文件、运行构建与正确性测试、执行 Benchmark，从而进行算法级优化，而不是仅停留在表面的代码改写。
+Algocode 不会直接修改用户项目。每个候选都必须通过 Correctness、Contract 和 Benchmark 验证，用户可以查看结构化的证据链、Diff、置信区间和决策结果，再显式执行 accept 和 apply。应用后如果发现问题，还可以通过 rollback 回滚。
+除了单次优化，Algocode 支持多候选搜索：当一个方向有显著正向前景但尚未满足接受条件时，会继续细化同一候选；当方向没有可测收益时，则创建新候选继续搜索。它同时提供 CLI 和 VS Code 扩展入口，适合算法竞赛代码、数据结构、图算法、字符串算法、缓存和解析器等行为可验证的程序。
 
-```text
-输入项目：test.py
-
-Algocode 自动执行：
-  1. 生成项目行为契约
-  2. 捕获基线输出与基线性能
-  3. 分析算法热点，规划优化方向
-  4. 在隔离 Worktree 中生成候选实现
-  5. 验证正确性与契约
-  6. 对比 Benchmark
-  7. 生成报告、Diff，等待用户决定是否 Apply
-```
-
-示例输出：
-
-```text
-Task: task_xxxxxxxx
-Status: completed
-Correctness: passed
-Benchmark valid: true
-Baseline median: 0.7594s
-Candidate median: 0.5357s
-Improvement: 29.4573%
-```
-
-适用于算法竞赛代码、数据结构实现、图算法、字符串算法、缓存系统、解析器、并发组件等可确定性验证的代码。
-
----
-
-## v0.1.2 新增能力
-
-- **多候选搜索**：默认最多创建 3 个候选，从不同算法方向搜索，而不是只尝试一次。
-- **同候选细化**：方向有显著收益但尚未满足接受条件时，重新打开同一候选继续实现，默认最多 2 轮。
-- **算法级分析**：Analyze 现在要求问题结构、复杂度基线和至少 3 个候选算法；Plan 必须说明算法、优化前后复杂度和 `whyFaster`。
-- **多规模 Benchmark**：stdin 程序会生成递增规模输入；短程序会使用固定轮数 harness，减少解释器启动开销对结果的影响。
-- **配对统计证据**：Baseline 与 Candidate 按 input 和 repeat 配对，使用配对置换检验、bootstrap 置信区间和 MAD 鲁棒波动。
-- **阶段工具隔离**：每个阶段只向模型暴露允许工具，并持续告知剩余轮次、剩余工具调用数和候选自检要求。
-- **阶段回退可解释**：细化候选或换新候选时，会输出明确的阶段回退原因。
-
----
-
-## 核心特性
-
-- **契约优先** — 优化前先确定公开 API、输入输出、配置字段、错误语义和边界行为，避免“变快了但语义坏了”。
-- **证据驱动** — Correctness、Contract、Benchmark 结果全部持久化，接受与拒绝基于真实证据，而不是模型自我评价。
-- **隔离候选** — CLI 在 Git Worktree 中试错；VS Code 扩展在临时影子工作区中运行，原项目不会被直接修改。
-- **人工可控** — Diff、Review、Apply 分离。先看证据，再决定是否应用，应用后支持 Rollback。
-- **全程可审计** — 每次模型调用、工具调用、阶段结果、候选快照和优化记录都会保存。
-- **阶段进度可见** — VS Code 终端会显示当前阶段、总阶段序号、轮次、当前工具、工具数量和耗时。
-- **失败可重试** — 负收益、证据不足或阶段阻塞时，可基于历史记录重新规划方向。
-- **多模型 Provider** — 支持 OpenAI、DeepSeek、OpenRouter、Kimi、智谱 GLM、MiniMax、Claude、豆包、通义千问以及任意 OpenAI-compatible 服务。
-- **本地优先** — 默认在本机执行；Docker / WSL2 仅作为可选隔离增强。
-- **CLI + VS Code 双入口** — 适合终端自动化和日常编辑器操作。
-
----
+## 为什么选择 Algocode？
+### 通用 Agent 做算法优化的局限
+- **只能改代码，不能证明正确性** ——模型可能改变边界条件、错误语义、返回顺序或状态转换，而这些变化不一定能被普通测试发现。
+- **容易只做局部优化** ——通用 Agent 倾向于修改循环、变量和调用方式，不容易主动重新分析问题结构，寻找真正的算法级改进。
+- **性能结果缺少可信依据** ——单次 time 或一次 Benchmark 很容易受到系统负载、缓存、解释器启动和环境变化影响。
+- **长任务容易偏离原始目标** ——随着上下文增长，模型可能逐渐忽略行为契约、保护文件和验证约束。
+- **缺少稳定的候选生命周期** ——没有隔离候选、证据门控和回滚机制时，失败尝试很难安全地继续下去。
+- **难以比较不同方向** ——如果多个优化方案只存在于对话和临时命令中，就无法系统地比较性能、正确性和风险。
+- **过程难以审计和复现** ——为什么接受、为什么拒绝、测试和 Benchmark 具体运行了什么，往往没有完整记录。
+- **质量过度依赖模型和提示词** ——换一个模型或修改一段提示词，优化结果可能明显波动。
+### Algocode 能做的
+- **建立行为契约** ——在优化前明确公开 API、输入输出、错误行为、状态转换、排序和边界条件。
+- **隔离每次优化** ——在独立 Git Worktree 中创建候选，验证通过前不会修改用户项目。
+- **进行算法级分析** ——分析问题结构、输入分布、操作代数和复杂度差距，并提出多个候选算法方向。
+- **验证行为一致性** ——通过 Correctness、Contract 和参考实现交叉验证，确保候选没有破坏原有行为。
+- **提供可信 Benchmark** ——使用 warmup、重复采样、交错运行、多规模输入和固定 harness，减少环境噪声。
+- **判断提升是否真实** ——通过配对置换检验、bootstrap 置信区间和 MAD 鲁棒波动，区分真实收益与随机波动。
+- **识别算法级改进** ——分析运行时间随输入规模的增长趋势，识别复杂度下降，而不只看固定输入的百分比。
+- **细化有前景的候选** ——方向正确但收益不足时，重新打开同一候选继续优化。
+- **继续搜索其他方向** ——当前方向没有可测收益时，基于历史记录创建新候选，而不是重复同一种失败方案。
+- **约束 Agent 行为** ——阶段只暴露允许使用的工具，并持续告知剩余模型轮次、剩余工具调用数和候选自检要求。
+- **保留人工控制** ——候选经过 Review 和 Diff 后，由用户显式执行 accept 和 apply。
+- **支持安全回滚** ——应用后发现问题，可以执行 rollback 恢复原工作区。
+- **保持模型可替换** ——支持不同模型 Provider，同时复用相同的契约、验证、Benchmark 和候选生命周期。
+- **留下完整证据链** ——Contract、Correctness、Benchmark、Decision、Report、模型日志和候选记录都会持久化，便于审计和复现。
 
 ## 性能与结果声明
 
@@ -89,44 +62,22 @@ Algocode 通过大模型分析源代码并生成候选优化。优化后的性�
 
 Algocode 不承诺每次优化都带来正收益，也不替代人工代码审查。请以实际的 Correctness、Contract、Benchmark、Diff 和 Review 结果为准，在确认行为正确且收益满足预期后再 Apply。
 
-## 使用守则（优化前必看）
 
-Algocode 适合优化“行为可验证”的代码。开始前请确认项目满足以下条件。
-
-### 通用要求
-
-| 条件 | 说明 |
-|---|---|
-| Git 仓库 | 项目需要是 Git 仓库；不是时 Algocode 会自动初始化 |
-| 单主语言 | 一个项目只支持一种主语言；Python 和 C++ 同时存在时优先 C++ |
-| 明确入口 | 有可执行入口文件，运行后能输出结果 |
-| 确定性输出 | 相同输入下输出一致，供 Correctness 验证 |
-| 进程级 Benchmark | 以整个程序运行为测量单位，不支持函数级 Benchmark |
-
-### Python 项目
-
-- 项目中存在 `.py` 文件，或存在 `pyproject.toml` / `setup.py`。
-- 入口优先匹配 `main.py`、`test.py`，否则选择第一个非 `__init__.py` 文件。
-- 入口程序能正常运行，退出码为 0。
-
-### C++ 项目
-
-- 项目中存在 `.cpp` / `.cc` / `.cxx` 文件，或存在 `CMakeLists.txt` / `Makefile`。
-- 系统已安装 `g++` 或 `clang++`，支持 C++17。
-- 入口优先匹配 `main.cpp`、`test.cpp`，否则选择第一个源文件。
-- 代码能正常编译和运行，退出码为 0。
-
-### 暂不支持的场景
-
-- Python 与 C++ 深度混合项目，例如 Python 调用 C++ 扩展。
-- 复杂多翻译单元或大型 CMake 工程。
-- 运行时依赖网络、数据库、GPU 或不可控外部服务的代码。
-- 函数级或模块级 Benchmark。
+## Algocode 如何保证正确性？
+Algocode 不依赖模型自我评价，而是通过行为契约、基线冻结、Correctness、Contract Test 和参考实现交叉验证共同保证候选正确性。
+- **契约先行** ——优化前明确公开 API、输入输出、错误行为、状态转换、排序和边界条件，禁止通过删除检查或修改测试获得性能提升。
+- **基线冻结** ——保存原始源码快照、环境 Hash、基线输出和基线性能，所有候选必须与同一个基线比较。
+- **多层验证** ——通过固定用例、参考实现、压力测试和确定性检查，验证输出、退出码、异常、API 返回和状态变化。
+- **参考交叉** ——在保护目录中保存未修改的参考实现，候选必须在边界输入和小规模输入上与其行为一致。
+- **阶段门禁** ——候选只有通过 Build、Correctness 和 Contract Test，才能进入 Benchmark；Apply 前还会检查 Decision、stale 状态和 Rollback Manifest。
+- **人工确认** ——自动验证通过后，仍需用户查看 Diff、Review 和证据，显式执行 accept 和 apply。
 
 
-## 环境与依赖
+## 如何使用
 
-### 系统要求
+### 环境与依赖
+
+#### 系统要求
 
 | 依赖 | 最低版本 | 说明 |
 |---|---|---|
@@ -138,57 +89,27 @@ Algocode 适合优化“行为可验证”的代码。开始前请确认项目�
 - **Docker / WSL2** — 用于更强的沙箱隔离，非强制要求。
 - **VS Code** — 用于右键菜单、实时阶段进度、Diff、Apply 和 Rollback。
 
-## 快速开始
 
-### 方式一：从 PyPI 安装
+### CLI
 
+#### 安装
 ```bash
 pip install algocode-agent
 ```
 
-安装 VS Code 扩展：
-
-```bash
-algocode vscode install
-```
-
 扩展命令会自动查找本机的 `code`、`code-insiders` 或 `codium`。
 
-如果找不到 VS Code CLI：
+安装后，`algocode` 命令即可全局使用。
 
-```powershell
-algocode vscode install --code "{VScode路径}\bin\code.cmd"
-```
+#### 快速使用
 
-### 方式二：从源码安装
-
-Windows PowerShell：
-
-```powershell
-git clone https://github.com/acd2113/Algocode.git
-cd Algocode
-python -m venv .venv
-.\.venv\Scripts\python -m pip install -e ".[dev]"
-.\.venv\Scripts\python -m algocode doctor
-```
-
-macOS / Linux：
-
-```bash
-git clone https://github.com/acd2113/Algocode.git
-cd Algocode
-python3 -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"
-.venv/bin/python -m algocode doctor
-```
-
-### 配置模型
+**配置模型**
 
 ```bash
 algocode api
 algocode test
 ```
-
+![img.png](docs/picture/img_ 5.png)
 `algocode api` 用于选择模型厂商、Base URL、模型 ID 和 API Key。API Key 保存在本机凭证文件中，不会写入项目配置。
 
 切换默认模型：
@@ -196,13 +117,12 @@ algocode test
 ```bash
 algocode model
 ```
-
 ### 环境检查
 
 ```bash
 algocode doctor
 ```
-
+![img_5.png](docs/picture/img_5.png)
 查看是否满足条件，建议优先运行
 
 ### 运行第一次优化
@@ -229,48 +149,25 @@ algocode apply
 algocode rollback
 ```
 
-重新尝试优化方向：
-
-```bash
-algocode retry
-```
-
 ---
 
-## VS Code 扩展
+### VS Code 扩展
 
-### 安装
+#### 安装
+也要先用cli安装
+```bash
+pip install algocode-agent
+```
 
-推荐使用：
-
+安装扩展：
 ```bash
 algocode vscode install
 ```
 
-也可以使用 VSIX 手动安装：
-
-```powershell
-code --install-extension "路径\algocode-vscode-0.1.2.vsix" --force
-```
-
-或者：
-
-```text
-Extensions -> ... -> Install from VSIX...
-```
-
-### 使用
-
+#### 使用
+**配置模型** ——[同上](#快速使用)
 右键 `.py`、`.cpp`、`.cc`、`.cxx` 文件，选择：
-
-```text
-Algocode
-    优化 Optimize
-    回滚 Rollback
-    应用 Apply
-    差异 Show Diff
-    检查 Review
-```
+![img_6.png](docs/picture/img_6.png)
 
 各操作含义：
 
@@ -322,75 +219,6 @@ algocode status --json
 algocode review --json
 algocode optimize --json
 ```
-
----
-
-## 使用方式
-
-### 使用示例
-
-执行 `algocode api` 选择模型厂商和 API Key：
-
-![配置 Provider](docs/picture/img_1.png)
-
-将需要优化的文件放入一个文件夹中：
-
-![项目目录](docs/picture/img.png)
-
-执行 `algocode init` 初始化项目、生成契约并建立基线：
-
-![初始化](docs/picture/img_2.png)
-
-执行 `algocode optimize` 启动优化流程；`Status: completed` 表示流程完成，后续可执行 `review`、`diff`、`report`、`apply` 和 `rollback`：
-
-![优化结果](docs/picture/img_3.png)
-
-
-### 方式一：完整 CLI 流程
-
-```bash
-algocode init
-algocode optimize
-algocode status
-algocode review
-algocode diff
-```
-
-如果结果满足要求：
-
-```bash
-algocode apply <task-id> <candidate-id>
-```
-
-如需恢复：
-
-```bash
-algocode rollback
-```
-
-### 方式二：VS Code 右键流程
-
-```text
-右键文件
-  -> Algocode
-  -> 优化 Optimize
-  -> 查看实时阶段
-  -> 查看 Diff / Review
-  -> Apply 或 Rollback
-```
-
-适合日常开发时直接在编辑器内完成优化、审查和应用。
-
-### 方式三：脚本与自动化
-
-```bash
-algocode init --json
-algocode optimize --json
-algocode status --json
-algocode review --json
-```
-
-JSON 输出适合接入 CI、批处理脚本或上层工具。
 
 ---
 

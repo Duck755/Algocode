@@ -166,6 +166,20 @@ class DecisionServiceTests(unittest.IsolatedAsyncioTestCase):
             candidate = self.candidate_projection.get(connection, "candidate-1")
         self.assertEqual(candidate.status, CandidateStatus.SELECTED)
 
+    async def test_legacy_quality_warnings_do_not_pollute_accepted_reason(self) -> None:
+        self._set_benchmark_evidence(5.0, True)
+        self.benchmark_service.read_comparison.return_value["quality_warnings"] = [
+            "raw sample variation exceeded configured threshold"
+        ]
+
+        decision = await self.service.auto_decide("task-1", "candidate-1")
+
+        self.assertEqual(decision.outcome, DecisionOutcome.ACCEPTED)
+        self.assertEqual(
+            decision.reason,
+            "correctness and benchmark evidence passed acceptance policy",
+        )
+
 
 class AlgorithmicGainTests(unittest.TestCase):
     def test_accepts_a_large_enough_exponent_drop(self) -> None:

@@ -2441,6 +2441,7 @@
 </code></pre></div>
 <h3 id="algocode-model"><code>algocode model</code><a class="headerlink" href="#algocode-model" title="Permanent link">&para;</a></h3>
 <p>切换当前项目默认模型。</p>
+<p>命令会从当前 Provider 的上游 <code>/models</code> 接口获取可用模型，并与本地已配置模型合并展示。上游不可用时自动回退到本地配置，并保留手动输入模型 ID。</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>algocode<span class="w"> </span>model
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>algocode<span class="w"> </span>model<span class="w"> </span>--provider<span class="w"> </span>openai
 </code></pre></div>
@@ -2585,7 +2586,7 @@
 <a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>│   决策    accepted            correctness and benchmark evidence passed acceptance policy           │
 <a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>└─────────────────────────────────────────────────────────────────────────────────────────────────────┘
 </code></pre></div>
-<p>当 Benchmark 使用配对样本时，证据链和 JSON 还会包含配对置信区间、鲁棒波动和 <code>quality_warnings</code>。原始标准差波动超限但鲁棒波动正常时，不会直接把 comparison 判为无效。</p>
+<p>当 Benchmark 使用配对样本时，证据链和 JSON 会包含配对置信区间和 MAD 鲁棒波动。原始标准差不会参与 Decision，也不会产生用户可见 warning。</p>
 <p>交互式终端下还会输出下一步菜单（查看候选改动 / 应用候选 / 生成任务报告 / 重新规划重试）。</p>
 <h3 id="algocode-retry"><code>algocode retry</code><a class="headerlink" href="#algocode-retry" title="Permanent link">&para;</a></h3>
 <p>基于历史优化记录，从 <code>PLAN</code> 阶段重新规划。</p>

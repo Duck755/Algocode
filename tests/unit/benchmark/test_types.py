@@ -50,7 +50,7 @@ class BenchmarkTypesTests(unittest.TestCase):
         self.assertIn("variation", comparison.reason)
 
 
-    def test_single_outlier_is_warning_not_invalid(self) -> None:
+    def test_single_outlier_does_not_create_quality_warning(self) -> None:
         baseline = [
             0.554469,
             0.552764,
@@ -98,7 +98,7 @@ class BenchmarkTypesTests(unittest.TestCase):
         )
 
         self.assertTrue(comparison.valid)
-        self.assertTrue(comparison.quality_warnings)
+        self.assertEqual(comparison.quality_warnings, ())
         self.assertEqual(comparison.pairing, "paired")
         self.assertGreater(comparison.improvement_percent, 40.0)
         self.assertTrue(comparison.statistically_significant)

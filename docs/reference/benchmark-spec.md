@@ -26,8 +26,7 @@ Benchmark 规格默认位于：
 | `network` | bool | `false` | 是否允许网络。 |
 | `max_variation_percent` | float / null | `null` | 样本波动上限。 |
 
-`max_variation_percent` 使用 MAD 鲁棒波动判断 comparison 是否有效。原始标准差波动
-仍会写入报告，但单个系统调度尖峰只会产生质量 warning，不会单独否定整组结果。
+`max_variation_percent` 使用 MAD 鲁棒波动判断 comparison 是否有效。原始标准差不会参与有效性判断、Decision 或用户可见警告。
 `algocode init` 生成 process/wall_time 基准时默认写入 `15.0`。
 
 ## `metric`

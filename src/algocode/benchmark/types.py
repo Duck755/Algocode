@@ -268,7 +268,6 @@ def compare_sample_sets(
 
     per_input: list[InputComparison] = []
     improvements: list[float] = []
-    raw_variations: list[float] = []
     robust_variations: list[float] = []
     p_values: list[float] = []
     paired_relative_improvements: list[float] = []
@@ -324,9 +323,6 @@ def compare_sample_sets(
             )
         )
         improvements.append(improvement)
-        raw_variations.append(
-            max(baseline_summary.variation_percent, candidate_summary.variation_percent)
-        )
         robust_variations.append(
             max(
                 baseline_summary.robust_variation_percent,
@@ -367,18 +363,11 @@ def compare_sample_sets(
     p_value = max(p_values)
     valid = True
     reason = ""
-    quality_warnings: list[str] = []
-    max_raw_variation = max(raw_variations)
     max_robust_variation = max(robust_variations)
     if max_variation_percent is not None:
         if max_robust_variation > max_variation_percent:
             valid = False
             reason = "robust sample variation exceeds configured threshold"
-        elif max_raw_variation > max_variation_percent:
-            quality_warnings.append(
-                "raw sample variation exceeded configured threshold; "
-                "robust variation stayed within it"
-            )
 
     growth_baseline = estimate_growth(
         [(point.size, point.baseline_median) for point in per_input if point.size]
@@ -409,7 +398,7 @@ def compare_sample_sets(
         statistically_significant=p_value <= (1.0 - confidence_level),
         direction=direction,
         pairing="paired" if paired_relative_improvements else "independent",
-        quality_warnings=tuple(quality_warnings),
+        quality_warnings=(),
         per_input=tuple(per_input),
         growth_baseline=growth_baseline.exponent if growth_baseline else None,
         growth_candidate=growth_candidate.exponent if growth_candidate else None,

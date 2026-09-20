@@ -43,7 +43,7 @@ def build_provider(
         raise InvalidRequestError(f"provider type {provider_config.type!r} is not supported")
     if not provider_config.base_url:
         raise InvalidRequestError(f"provider {selected_provider!r} has no baseUrl")
-    api_key = _resolve_api_key(provider_config, selected_provider)
+    api_key = resolve_api_key(provider_config, selected_provider)
     provider_options = {
         "provider_id": selected_provider,
         "base_url": provider_config.base_url,
@@ -60,7 +60,7 @@ def build_provider(
     return provider, ModelRef(provider_id=selected_provider, model_id=model_config.model)
 
 
-def _resolve_api_key(provider_config, provider_key: str) -> str:
+def resolve_api_key(provider_config, provider_key: str) -> str:
     if provider_config.api_key_env:
         api_key = os.environ.get(provider_config.api_key_env)
         if not api_key:

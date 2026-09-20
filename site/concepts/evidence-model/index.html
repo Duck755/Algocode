@@ -1574,14 +1574,14 @@
 <li>是否改变了顺序、状态或错误行为。</li>
 </ul>
 <h2 id="benchmark">Benchmark<a class="headerlink" href="#benchmark" title="Permanent link">&para;</a></h2>
-<p>在受控环境下测量性能，记录 Warmup、重复样本、Median、原始波动、MAD 鲁棒波动、置信区间和环境 Hash。</p>
+<p>在受控环境下测量性能，记录 Warmup、重复样本、Median、MAD 鲁棒波动、置信区间和环境 Hash。</p>
 <p>它主要回答：</p>
 <ul>
 <li>候选是否真的更快。</li>
 <li>提升是否稳定。</li>
 <li>测量是否可信。</li>
 </ul>
-<p>Benchmark 会按同一 input 和 repeat 配对 Baseline/Candidate，使用配对置换检验和 bootstrap 置信区间。原始标准差波动只作为诊断；有效性和质量判断优先使用 MAD 鲁棒波动，避免单个系统调度尖峰否定整组结果。</p>
+<p>Benchmark 会按同一 input 和 repeat 配对 Baseline/Candidate，使用配对置换检验、bootstrap 置信区间和 MAD 鲁棒波动，避免单个系统调度尖峰否定整组结果。</p>
 <p>当至少 3 个输入声明了 <code>size</code> 时，还会拟合 <code>growthBaseline</code>、<code>growthCandidate</code> 和 <code>growthDelta</code>。增长指数明显下降可以作为算法级改进证据。</p>
 <h2 id="_2">证据顺序<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <p>Correctness 必须通过，Contract 必须通过，随后 Benchmark 才具有进入决策阶段的资格。</p>

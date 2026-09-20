@@ -240,9 +240,6 @@ class DecisionService:
             )
 
         reason = "correctness and benchmark evidence passed acceptance policy"
-        warnings = comparison.get("quality_warnings")
-        if isinstance(warnings, (list, tuple)) and warnings:
-            reason += "; quality warning: " + "; ".join(str(item) for item in warnings)
         return await self.record_outcome(
             task.id,
             candidate.id,

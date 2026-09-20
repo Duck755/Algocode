@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import yaml
@@ -15,10 +16,40 @@ from algocode.cli.commands.api import (
     _secret_fingerprint,
     persist_provider_selection,
 )
+from algocode.cli.commands.model import _merge_model_choices
+from algocode.cli.commands.model import ModelChoice
 from algocode.security import CredentialStore
 
 
 class ApiConfigHelpersTests(unittest.TestCase):
+    def test_model_choices_merge_upstream_and_configured_models(self) -> None:
+        models = {
+            "openai/configured": SimpleNamespace(provider="openai", model="configured")
+        }
+
+        choices = _merge_model_choices(
+            models,
+            "openai",
+            ["upstream-a", "configured", "upstream-a"],
+            "openai/upstream-a",
+        )
+
+        self.assertEqual(
+            [(choice.model_id, choice.model_key, choice.configured) for choice in choices],
+            [
+                ("upstream-a", "openai/upstream-a", False),
+                ("configured", "openai/configured", True),
+            ],
+        )
+        self.assertEqual(
+            _merge_model_choices({}, "openai", ["fresh"], "openai/missing"),
+            [ModelChoice(
+                model_key="openai/fresh",
+                model_id="fresh",
+                configured=False,
+            )],
+        )
+
     def test_secret_fingerprint_hides_middle(self) -> None:
         self.assertEqual(_secret_fingerprint("sk-1234567890abcdef"), "sk-123...cdef")
         self.assertEqual(_secret_fingerprint("short"), "********")

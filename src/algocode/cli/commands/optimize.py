@@ -117,17 +117,7 @@ def _evidence_rows(
         rows.append(("基准", "未运行", "缺少候选基准结果"))
     else:
         valid = comparison.get("valid") if isinstance(comparison, dict) else None
-        warnings = comparison.get("quality_warnings") if isinstance(comparison, dict) else None
-        warning_note = (
-            f" · {len(warnings)} warning"
-            if isinstance(warnings, list) and warnings
-            else ""
-        )
-        rows.append((
-            "基准",
-            f"benchmark:{_short(benchmark.id)}",
-            f"valid={valid}{warning_note}",
-        ))
+        rows.append(("基准", f"benchmark:{_short(benchmark.id)}", f"valid={valid}"))
     if isinstance(comparison, dict) and comparison.get("improvement_percent") is not None:
         note = (
             f"{float(comparison.get('baseline_median', 0.0)):.3f}"
