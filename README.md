@@ -16,7 +16,7 @@
 
 它会先建立行为契约，再在隔离 Worktree 中尝试优化，最后用 Correctness、Contract 和 Benchmark 三类证据决定候选是否值得应用。
 
-[English](README_EN.md) · [使用守则](#使用守则优化前必看) · [快速开始](#快速开始) · [VS Code](#vs-code-扩展) · [工作流](#优化工作流) · [命令速查](#cli-命令速查)
+[English](README_EN.md) · [快速开始](#快速使用) · [VS Code](#vs-code-扩展) ·  [命令速查](#cli-命令速查)
 
 
 </div>
@@ -26,8 +26,11 @@
 ## Algocode 是什么
 
 Algocode 是一款面向 C++ / Python 的可验证算法优化 Agent CLI 工具。它通过契约、正确性和性能证据驱动代码优化，只需配置一个模型端点即可使用。
+
 它读取 Git 仓库和项目入口，通过具备工具调用能力的 Agent 分析算法热点、问题结构和复杂度，并在隔离的 Git Worktree 中生成候选实现。Agent 可以读取完整文件、搜索代码库、检查其他文件、运行构建与正确性测试、执行 Benchmark，从而进行算法级优化，而不是仅停留在表面的代码改写。
+
 Algocode 不会直接修改用户项目。每个候选都必须通过 Correctness、Contract 和 Benchmark 验证，用户可以查看结构化的证据链、Diff、置信区间和决策结果，再显式执行 accept 和 apply。应用后如果发现问题，还可以通过 rollback 回滚。
+
 除了单次优化，Algocode 支持多候选搜索：当一个方向有显著正向前景但尚未满足接受条件时，会继续细化同一候选；当方向没有可测收益时，则创建新候选继续搜索。它同时提供 CLI 和 VS Code 扩展入口，适合算法竞赛代码、数据结构、图算法、字符串算法、缓存和解析器等行为可验证的程序。
 
 ## 为什么选择 Algocode？
@@ -103,7 +106,7 @@ pip install algocode-agent
 
 #### 快速使用
 
-**配置模型**
+配置模型
 
 ```bash
 algocode api
