@@ -87,6 +87,7 @@ class RuntimeConfig(BaseModel):
     max_population: int = Field(default=6, gt=0)
     max_evals: int = Field(default=50, gt=0)
     max_iterations: int = Field(default=3, gt=0)
+    max_refinements: int = Field(default=2, ge=0)
     cost_budget_usd: float | None = Field(default=None, ge=0)
     network: bool = False
     run_seed: int = Field(default=0, ge=0)
@@ -127,9 +128,11 @@ class AcceptancePolicyConfig(BaseModel):
     require_correctness: bool = True
     require_statistically_significant: bool = True
     min_median_improvement_percent: float = 2.0
+    min_growth_exponent_reduction: float = Field(default=0.5, ge=0)
+    growth_points_required: int = Field(default=3, ge=0)
     max_peak_memory_regression_percent: float | None = Field(default=None, ge=0)
     max_compile_time_regression_percent: float | None = Field(default=None, ge=0)
-    max_variation_percent: float | None = Field(default=5.0, gt=0)
+    max_variation_percent: float | None = Field(default=15.0, gt=0)
 
 
 class PolicyRuleConfig(BaseModel):

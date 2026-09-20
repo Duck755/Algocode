@@ -61,6 +61,43 @@ class DeterministicFakeProvider:
                         "summary": "Fake provider analyzed the project.",
                         "language": "python",
                         "files": [{"path": "main.py", "role": "algorithm"}],
+                        "problemStructure": {
+                            "inputModel": "single stdin case with n values",
+                            "dataDistribution": "uniform integers",
+                            "operationAlgebra": "addition is associative and commutative",
+                            "queryUpdateMix": "read-only queries",
+                            "monotonicity": "not monotonic",
+                            "constraints": ["output order preserved"],
+                        },
+                        "complexityBaseline": {
+                            "current": "O(n^2)",
+                            "knownBest": "O(n log n)",
+                            "gap": "nested loop over pairs",
+                            "reasoning": "the pair scan can be replaced by sorting",
+                        },
+                        "algorithmCandidates": [
+                            {
+                                "name": "sort and scan",
+                                "paradigm": "sorting",
+                                "complexity": "O(n log n)",
+                                "applicability": "comparable keys",
+                                "expectedGain": "removes the quadratic pair loop",
+                            },
+                            {
+                                "name": "hash index",
+                                "paradigm": "hashing",
+                                "complexity": "O(n)",
+                                "applicability": "exact key lookup",
+                                "expectedGain": "constant-time membership queries",
+                            },
+                            {
+                                "name": "two pointers",
+                                "paradigm": "greedy scanning",
+                                "complexity": "O(n log n)",
+                                "applicability": "monotone order after sorting",
+                                "expectedGain": "single pass after sorting",
+                            },
+                        ],
                         "optimizationCandidates": [
                             {"id": "optimize", "description": "Optimize the hot path."}
                         ],
@@ -100,6 +137,11 @@ class DeterministicFakeProvider:
                         arguments={
                             "summary": "Optimize the hot path.",
                             "strategy": "Apply the planned optimization.",
+                            "algorithm": "sort and scan",
+                            "complexityBefore": "O(n^2)",
+                            "complexityAfter": "O(n log n)",
+                            "whyFaster": "replaces the pair scan with a sorted single pass",
+                            "structureRef": "problemStructure.operationAlgebra",
                             "steps": [
                                 {
                                     "id": "step-1",

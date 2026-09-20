@@ -75,8 +75,8 @@ OPTIMIZE_PHASES: tuple[str, ...] = (
     "report",
 )
 
-_UNICODE_GLYPHS: Mapping[str, str] = {"done": "✔", "failed": "✖"}
-_ASCII_GLYPHS: Mapping[str, str] = {"done": "ok", "failed": "x"}
+_UNICODE_GLYPHS: Mapping[str, str] = {"done": "✔", "failed": "✖", "note": "!"}
+_ASCII_GLYPHS: Mapping[str, str] = {"done": "ok", "failed": "x", "note": "!"}
 
 _RESET = "\x1b[0m"
 _DIM = "\x1b[2m"
@@ -147,6 +147,19 @@ class PhaseStat:
 
 
 @dataclass(slots=True)
+class PhaseTransition:
+    """An explicit Runtime phase back-jump with its reason."""
+
+    event_id: str
+    from_phase: str
+    to_phase: str
+    reason: str
+    candidate_id: str | None
+    iteration: int
+    at: datetime
+
+
+@dataclass(slots=True)
 class _Freeze:
     """One log line waiting to be printed, ordered by when its work ended."""
 
@@ -156,6 +169,7 @@ class _Freeze:
     ok: bool
     tool_id: str | None = None
     phase: str | None = None
+    event_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -165,6 +179,7 @@ class Snapshot:
     phases: list[PhaseStat] = field(default_factory=list)
     current: str | None = None
     actions: list[Action] = field(default_factory=list)
+    transitions: list[PhaseTransition] = field(default_factory=list)
 
     def stat(self, name: str | None) -> PhaseStat | None:
         if name is None:
@@ -197,6 +212,23 @@ def analyze_events(events: Iterable[EventEnvelope]) -> Snapshot:
             if stat.started_at is None:
                 stat.started_at = event.timestamp
             stat.last_at = event.timestamp
+            continue
+        if event.type is EventType.AGENT_PHASE_REENTERED:
+            snapshot.transitions.append(
+                PhaseTransition(
+                    event_id=event.id,
+                    from_phase=str(payload.get("from_phase") or ""),
+                    to_phase=str(payload.get("to_phase") or ""),
+                    reason=str(payload.get("reason") or ""),
+                    candidate_id=(
+                        str(payload["candidate_id"])
+                        if payload.get("candidate_id") is not None
+                        else None
+                    ),
+                    iteration=int(payload.get("iteration") or 0),
+                    at=event.timestamp,
+                )
+            )
             continue
         name = str(payload.get("phase") or current or "")
         if not name:
@@ -327,6 +359,32 @@ def action_line(
     return f"{text} {marker}" if marker else text
 
 
+def _short_reason(reason: str, limit: int = 160) -> str:
+    text = " ".join(reason.split()) or "继续优化当前候选"
+    return text if len(text) <= limit else f"{text[: limit - 1]}…"
+
+
+def transition_line(
+    transition: PhaseTransition,
+    *,
+    marker: str = "",
+    title: str = TITLE,
+) -> str:
+    """A frozen line explaining why Runtime moved back to an earlier phase."""
+
+    parts = [
+        "阶段回退",
+        f"{phase_label(transition.from_phase)} → {phase_label(transition.to_phase)}",
+        f"原因：{_short_reason(transition.reason)}",
+    ]
+    if transition.candidate_id:
+        parts.append(f"候选 {transition.candidate_id}")
+    if transition.iteration > 0:
+        parts.append(f"第 {transition.iteration} 次")
+    text = _join(parts, title=title)
+    return f"{text} {marker}" if marker else text
+
+
 def phase_line(
     stat: PhaseStat,
     *,
@@ -400,6 +458,7 @@ class LiveProgress:
         self._start_seq: int | None = None
         self._frozen_tools: set[str] = set()
         self._frozen_phases: set[str] = set()
+        self._frozen_events: set[str] = set()
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -474,6 +533,8 @@ class LiveProgress:
                     self._frozen_tools.add(item.tool_id)
                 if item.phase is not None:
                     self._frozen_phases.add(item.phase)
+                if item.event_id is not None:
+                    self._frozen_events.add(item.event_id)
                 self._emit(item.text, ok=item.ok)
             if final:
                 self._erase()
@@ -484,6 +545,22 @@ class LiveProgress:
         """Frozen log lines, ordered by the moment the narrated work ended."""
 
         entries: list[_Freeze] = []
+        for transition in snapshot.transitions:
+            if transition.event_id in self._frozen_events:
+                continue
+            entries.append(
+                _Freeze(
+                    at=transition.at,
+                    order=0,
+                    event_id=transition.event_id,
+                    ok=True,
+                    text=transition_line(
+                        transition,
+                        marker=self._glyphs["note"],
+                        title=self._title,
+                    ),
+                )
+            )
         for action in snapshot.actions:
             if action.completed_at is None or action.tool_call_id in self._frozen_tools:
                 continue
@@ -604,6 +681,7 @@ __all__ = [
     "Action",
     "LiveProgress",
     "PhaseStat",
+    "PhaseTransition",
     "Snapshot",
     "action_line",
     "analyze_events",
@@ -617,4 +695,5 @@ __all__ = [
     "tool_label",
     "tool_status_label",
     "tool_succeeded",
+    "transition_line",
 ]

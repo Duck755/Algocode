@@ -1793,6 +1793,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../changelog/v0.1.2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v0.1.2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../changelog/v0.1.1/" class="md-nav__link">
         
   
@@ -2557,6 +2585,7 @@
 <a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>│   决策    accepted            correctness and benchmark evidence passed acceptance policy           │
 <a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>└─────────────────────────────────────────────────────────────────────────────────────────────────────┘
 </code></pre></div>
+<p>当 Benchmark 使用配对样本时，证据链和 JSON 还会包含配对置信区间、鲁棒波动和 <code>quality_warnings</code>。原始标准差波动超限但鲁棒波动正常时，不会直接把 comparison 判为无效。</p>
 <p>交互式终端下还会输出下一步菜单（查看候选改动 / 应用候选 / 生成任务报告 / 重新规划重试）。</p>
 <h3 id="algocode-retry"><code>algocode retry</code><a class="headerlink" href="#algocode-retry" title="Permanent link">&para;</a></h3>
 <p>基于历史优化记录，从 <code>PLAN</code> 阶段重新规划。</p>
@@ -2579,8 +2608,10 @@
 <a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>correctness.status
 <a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>benchmark.valid
 <a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>benchmark.improvementPercent
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>decision.outcome
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>nextCommand
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>benchmark.confidenceInterval
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>benchmark.qualityWarnings
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>decision.outcome
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>nextCommand
 </code></pre></div>
 <h3 id="algocode-review"><code>algocode review</code><a class="headerlink" href="#algocode-review" title="Permanent link">&para;</a></h3>
 <p>汇总候选的 Correctness、Benchmark、Decision 和变更文件。</p>
@@ -2595,7 +2626,7 @@
 <h2 id="_6">决策与应用<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
 <h3 id="algocode-accept"><code>algocode accept</code><a class="headerlink" href="#algocode-accept" title="Permanent link">&para;</a></h3>
 <p>记录接受决策，不修改用户工作区。</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>algocode<span class="w"> </span>accept<span class="w"> </span>&lt;task-id&gt;<span class="w"> </span>&lt;candidate-id&gt;<span class="w"> </span>--reason<span class="w"> </span><span class="s2">"evidence verified"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>algocode<span class="w"> </span>accept<span class="w"> </span>&lt;task-id&gt;<span class="w"> </span>&lt;candidate-id&gt;<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;evidence verified&quot;</span>
 </code></pre></div>
 <h3 id="algocode-apply"><code>algocode apply</code><a class="headerlink" href="#algocode-apply" title="Permanent link">&para;</a></h3>
 <p>将已接受候选应用到用户工作区。CLI 会检查接受决策、stale 状态和 Patch，再执行应用。</p>
@@ -2625,7 +2656,7 @@
 <h3 id="algocode-baseline"><code>algocode baseline</code><a class="headerlink" href="#algocode-baseline" title="Permanent link">&para;</a></h3>
 <p>单独捕获任务基线。</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>algocode<span class="w"> </span>baseline<span class="w"> </span>&lt;task-id&gt;
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>algocode<span class="w"> </span>baseline<span class="w"> </span>&lt;task-id&gt;<span class="w"> </span>--language<span class="w"> </span>python<span class="w"> </span>--build-command<span class="w"> </span><span class="s2">"python test.py"</span><span class="w"> </span>--timeout<span class="w"> </span><span class="m">180</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>algocode<span class="w"> </span>baseline<span class="w"> </span>&lt;task-id&gt;<span class="w"> </span>--language<span class="w"> </span>python<span class="w"> </span>--build-command<span class="w"> </span><span class="s2">&quot;python test.py&quot;</span><span class="w"> </span>--timeout<span class="w"> </span><span class="m">180</span>
 </code></pre></div>
 <h3 id="algocode-correctness-run"><code>algocode correctness run</code><a class="headerlink" href="#algocode-correctness-run" title="Permanent link">&para;</a></h3>
 <p>运行任务基线 Correctness。</p>
@@ -2653,7 +2684,7 @@
 </code></pre></div>
 <h2 id="_9">实体查询<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
 <h3 id="algocode-task"><code>algocode task</code><a class="headerlink" href="#algocode-task" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>algocode<span class="w"> </span>task<span class="w"> </span>create<span class="w"> </span>--objective<span class="w"> </span><span class="s2">"优化 XXX"</span><span class="w"> </span>--project-root<span class="w"> </span>.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>algocode<span class="w"> </span>task<span class="w"> </span>create<span class="w"> </span>--objective<span class="w"> </span><span class="s2">&quot;优化 XXX&quot;</span><span class="w"> </span>--project-root<span class="w"> </span>.
 <a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>algocode<span class="w"> </span>task<span class="w"> </span>list
 <a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>algocode<span class="w"> </span>task<span class="w"> </span>show<span class="w"> </span>&lt;task-id&gt;
 </code></pre></div>
@@ -2681,7 +2712,7 @@
 <p>安装内置 VS Code 扩展。</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>algocode<span class="w"> </span>vscode<span class="w"> </span>install
 <a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>algocode<span class="w"> </span>vscode<span class="w"> </span>install<span class="w"> </span>--force
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>algocode<span class="w"> </span>vscode<span class="w"> </span>install<span class="w"> </span>--code<span class="w"> </span><span class="s2">"/path/to/code"</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>algocode<span class="w"> </span>vscode<span class="w"> </span>install<span class="w"> </span>--code<span class="w"> </span><span class="s2">&quot;/path/to/code&quot;</span>
 </code></pre></div>
 
 

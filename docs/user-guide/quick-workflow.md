@@ -31,7 +31,7 @@ flowchart TD
 
 1. **初始化**：`algocode init` 检测项目、生成 Contract、创建 Task，并捕获 Baseline。
 2. **优化**：`algocode optimize` 分析项目、制定计划，并在隔离候选工作区中实现优化。
-3. **验证**：候选必须先通过 Correctness 和 Contract，然后才运行 Benchmark。
+3. **验证**：候选必须先通过 Correctness 和 Contract，然后才运行 Benchmark。Benchmark 使用配对统计，方向有显著前景时继续细化，否则创建新候选。
 4. **落地**：用户查看 `status`、`review`、`diff`，确认后执行 `accept` 和 `apply`；需要时执行 `rollback`。
 
 ## 最常用命令

@@ -1519,6 +1519,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../changelog/v0.1.2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v0.1.2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../changelog/v0.1.1/" class="md-nav__link">
         
   
@@ -2116,10 +2144,16 @@
 <td>Correctness 未通过时禁止接受。</td>
 </tr>
 <tr>
+<td><code>requireStatisticallySignificant</code></td>
+<td>bool</td>
+<td><code>true</code></td>
+<td>要求配对统计检验显著，且置信区间不跨过 0。</td>
+</tr>
+<tr>
 <td><code>minMedianImprovementPercent</code></td>
 <td>float</td>
-<td><code>0.0</code></td>
-<td>最小 Median 提升百分比。</td>
+<td><code>2.0</code></td>
+<td>最小配对 Median 提升百分比。</td>
 </tr>
 <tr>
 <td><code>maxPeakMemoryRegressionPercent</code></td>
@@ -2136,8 +2170,8 @@
 <tr>
 <td><code>maxVariationPercent</code></td>
 <td>float / null</td>
-<td><code>null</code></td>
-<td>允许的最大样本波动百分比。</td>
+<td><code>15.0</code></td>
+<td>允许的最大 MAD 鲁棒波动百分比；原始波动只作为质量警告。</td>
 </tr>
 </tbody>
 </table>
@@ -2277,7 +2311,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">policy</span><span class="p">:</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">rules</span><span class="p">:</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">write_file</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">      </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="s">"*.py"</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">      </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;*.py&quot;</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">      </span><span class="nt">effect</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">allow</span>
 <a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">      </span><span class="nt">layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">project</span>
 </code></pre></div>

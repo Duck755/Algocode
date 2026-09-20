@@ -7,7 +7,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from algocode.application.services.decision_service import DecisionService
+from algocode.application.services.decision_service import (
+    DecisionService,
+    _algorithmic_gain,
+)
 from algocode.config.model import AcceptancePolicyConfig
 from algocode.domain.model import (
     ArtifactRef,
@@ -126,14 +129,17 @@ class DecisionServiceTests(unittest.IsolatedAsyncioTestCase):
             statistically_significant,
         )
         self.benchmark_service.read_result.return_value = {
-            "baseline_summary": {"variation_percent": 1.0},
-            "candidate_summary": {"variation_percent": 1.0},
+            "baseline_summary": {"robust_variation_percent": 1.0},
+            "candidate_summary": {"robust_variation_percent": 1.0},
         }
         self.benchmark_service.read_comparison.return_value = {
             "valid": True,
             "improvement_percent": improvement_percent,
             "statistically_significant": statistically_significant,
             "p_value": 0.01 if statistically_significant else 0.8,
+            "pairing": "paired",
+            "ci_lower": 1.0 if statistically_significant else -1.0,
+            "ci_upper": 10.0 if statistically_significant else 1.0,
         }
 
     async def test_auto_decide_rejects_negative_improvement(self) -> None:
@@ -159,6 +165,36 @@ class DecisionServiceTests(unittest.IsolatedAsyncioTestCase):
         with self.database.connect() as connection:
             candidate = self.candidate_projection.get(connection, "candidate-1")
         self.assertEqual(candidate.status, CandidateStatus.SELECTED)
+
+
+class AlgorithmicGainTests(unittest.TestCase):
+    def test_accepts_a_large_enough_exponent_drop(self) -> None:
+        policy = AcceptancePolicyConfig()
+
+        self.assertTrue(_algorithmic_gain({"growth_delta": 0.9, "growth_points": 4}, policy))
+
+    def test_requires_enough_size_points(self) -> None:
+        policy = AcceptancePolicyConfig()
+
+        self.assertFalse(_algorithmic_gain({"growth_delta": 0.9, "growth_points": 2}, policy))
+
+    def test_rejects_a_small_exponent_drop(self) -> None:
+        policy = AcceptancePolicyConfig()
+
+        self.assertFalse(_algorithmic_gain({"growth_delta": 0.1, "growth_points": 4}, policy))
+
+    def test_missing_evidence_grants_nothing(self) -> None:
+        policy = AcceptancePolicyConfig()
+
+        self.assertFalse(_algorithmic_gain({}, policy))
+        self.assertFalse(
+            _algorithmic_gain({"growth_delta": None, "growth_points": None}, policy)
+        )
+
+    def test_disabled_policy_never_grants_the_waiver(self) -> None:
+        policy = AcceptancePolicyConfig(growth_points_required=0)
+
+        self.assertFalse(_algorithmic_gain({"growth_delta": 2.0, "growth_points": 4}, policy))
 
 
 if __name__ == "__main__":

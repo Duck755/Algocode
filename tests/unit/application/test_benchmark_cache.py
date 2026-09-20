@@ -40,10 +40,12 @@ class BenchmarkCacheHelpersTests(unittest.TestCase):
                 "mean": 1.5,
                 "stddev": 0.5,
                 "variation_percent": 33.3,
+                "robust_variation_percent": 12.5,
             }
         )
         self.assertIsNotNone(summary)
         self.assertEqual(summary.count, 2)
+        self.assertEqual(summary.robust_variation_percent, 12.5)
 
     def test_result_and_comparison_rebuild_for_new_candidate(self) -> None:
         payload = {
@@ -96,6 +98,9 @@ class BenchmarkCacheHelpersTests(unittest.TestCase):
                 "ci_lower": 0.1,
                 "ci_upper": 0.2,
                 "statistically_significant": True,
+                "direction": "minimize",
+                "pairing": "paired",
+                "quality_warnings": ["raw variation was high"],
             },
             candidate_run_id="new-run",
             candidate_id="new",
@@ -103,6 +108,8 @@ class BenchmarkCacheHelpersTests(unittest.TestCase):
         self.assertEqual(comparison.candidate_run_id, "new-run")
         self.assertEqual(comparison.candidate_id, "new")
         self.assertEqual(comparison.improvement_percent, 25.0)
+        self.assertEqual(comparison.quality_warnings, ("raw variation was high",))
+        self.assertEqual(comparison.pairing, "paired")
 
 
 if __name__ == "__main__":

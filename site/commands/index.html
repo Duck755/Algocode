@@ -1447,6 +1447,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../changelog/v0.1.2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v0.1.2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../changelog/v0.1.1/" class="md-nav__link">
         
   
@@ -1746,6 +1774,7 @@
 </tr>
 </tbody>
 </table>
+<p><code>optimize</code> 在默认配置下可以创建多个候选，并对有显著正向前景但尚未被接受的候选继续细化。每个阶段只暴露允许工具，模型会收到剩余轮次和工具调用预算。</p>
 <p><code>optimize</code> 支持 <code>--fake-provider</code> 做无 Key 联调，也支持 <code>--stop-after verify</code> 分阶段调试。</p>
 <h2 id="_5">查看状态与证据<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>algocode<span class="w"> </span>status
@@ -1880,7 +1909,7 @@
 </tbody>
 </table>
 <h2 id="_9">实体查询<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>algocode<span class="w"> </span>task<span class="w"> </span>create<span class="w"> </span>--objective<span class="w"> </span><span class="s2">"优化 XXX"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>algocode<span class="w"> </span>task<span class="w"> </span>create<span class="w"> </span>--objective<span class="w"> </span><span class="s2">&quot;优化 XXX&quot;</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>algocode<span class="w"> </span>task<span class="w"> </span>list
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>algocode<span class="w"> </span>task<span class="w"> </span>show<span class="w"> </span>&lt;task-id&gt;
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>algocode<span class="w"> </span>candidate<span class="w"> </span>create<span class="w"> </span>&lt;task-id&gt;

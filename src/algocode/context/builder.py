@@ -353,20 +353,31 @@ def _phase_instructions(phase: TaskPhase) -> str:
             "Read-only reconnaissance. Read every required file completely in at least two "
             "turns; read_required_files may cover all in one turn. Extract public API "
             "return/ordering, "
-            "state, error, configuration, and boundary contracts. Do not modify, benchmark, or "
-            "submit; Runtime requests AnalysisReport when coverage is complete."
+            "state, error, configuration, and boundary contracts. Also work out the problem "
+            "structure: what the input looks like, how its size drives the work, which "
+            "operations are associative or commutative, the query/update mix, and where the "
+            "current complexity sits against the best known approach. Do not modify, benchmark, "
+            "or submit; Runtime requests AnalysisReport when coverage is complete."
         ),
         TaskPhase.BASELINE: ("Confirm the immutable baseline exists and call submit_phase_result."),
         TaskPhase.PLAN: (
-            "Use the AnalysisReport as the source of truth. Do not call read_file, "
-            "read_resource, or get_task_state in this phase. Submit exactly one "
-            "OptimizationPlan with submit_optimization_plan. Each step must name affected "
+            "Read-only reconnaissance is allowed and expected: use read_file, search_code, "
+            "list_files, or get_task_state to verify the structure and hotspots recorded in the "
+            "AnalysisReport. Never modify anything in this phase. Then submit exactly one "
+            "OptimizationPlan with submit_optimization_plan. Start from "
+            "AnalysisReport.problemStructure and AnalysisReport.complexityBaseline: name the "
+            "algorithm or data structure you will use, the complexity before and after, and why "
+            "the current choice is not already optimal. Do not plan micro-optimizations of a "
+            "hot loop when an algorithmic change removes the work entirely. Each step must "
+            "name affected "
             "files/APIs "
             "and verification, "
             "preserve ordering/errors/state/invariants, and never remove checks for speed. "
             "Keep the plan compact: at most 5 steps and do not copy long contract or analysis "
             "text into the JSON. "
-            'Required shape: {"summary":"...","strategy":"...","steps":'
+            'Required shape: {"summary":"...","strategy":"...","algorithm":"...",'
+            '"complexityBefore":"...","complexityAfter":"...","whyFaster":"...",'
+            '"structureRef":"...","steps":'
             '[{"id":"s1","description":"...","files":["..."],'
             '"verification":["..."]}],"constraints":["..."],"risks":["..."]}.'
             " Retry runs must also include retryDecision with mode, basedOnAttempt, "

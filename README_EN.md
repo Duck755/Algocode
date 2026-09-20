@@ -55,6 +55,18 @@ Algocode is designed for algorithm contest code, data structure implementations,
 
 ---
 
+## New in v0.1.2
+
+- **Multi-candidate search**: up to three candidate attempts by default, each exploring a different algorithmic direction.
+- **Same-candidate refinement**: a promising candidate is reopened for another implementation pass, up to two refinements by default.
+- **Algorithm-level analysis**: Analyze now requires problem structure, a complexity baseline, and at least three candidate algorithms. Plan must state the algorithm, before/after complexity, and why it is faster.
+- **Scaled benchmarks**: stdin programs can receive a generated input matrix, and short workloads use a fixed-round benchmark harness.
+- **Paired evidence**: baseline and candidate samples are paired by input and repeat, then compared with a paired permutation test, bootstrap confidence interval, and MAD robust variation.
+- **Phase-scoped tools**: each phase exposes only its allowed tools and includes remaining turn/tool budgets and candidate-check requirements.
+- **Explainable back-jumps**: refinement and new-candidate searches emit a frozen line that explains why the runtime returned to an earlier phase.
+
+---
+
 ## Core Features
 
 - **Contract-first**: Public APIs, inputs and outputs, configuration semantics, error behavior, and boundary cases are established before optimization, preventing changes that are faster but behaviorally wrong.
@@ -243,7 +255,7 @@ algocode vscode install
 Manual VSIX installation:
 
 ```powershell
-code --install-extension "path\to\algocode-vscode-0.1.1.vsix" --force
+code --install-extension "path\to\algocode-vscode-0.1.2.vsix" --force
 ```
 
 Or use:
@@ -452,6 +464,7 @@ src/algocode/
 ├── languages/            # Python / C++ language adapters
 ├── correctness/          # Correctness verification
 ├── benchmark/            # Benchmark engine
+├── profiling/            # Profiling adapters
 ├── workspace/            # Git worktrees, Apply, Rollback
 ├── storage/              # SQLite event store, projections, artifacts
 └── resources/            # Resources and bundled VS Code extension
@@ -575,16 +588,18 @@ Python package publishing is handled by GitHub Actions.
 Release flow:
 
 ```bash
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 The workflow builds and publishes:
 
 ```text
-algocode_agent-0.1.1.tar.gz
-algocode_agent-0.1.1-py3-none-any.whl
+algocode_agent-0.1.2.tar.gz
+algocode_agent-0.1.2-py3-none-any.whl
 ```
+
+See [`docs/changelog/v0.1.2.md`](docs/changelog/v0.1.2.md) for the full changelog.
 
 Users can install with:
 

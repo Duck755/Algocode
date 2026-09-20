@@ -776,7 +776,7 @@
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        双入口
+        搜索与细化
       
     </span>
   </a>
@@ -785,6 +785,17 @@
       
         <li class="md-nav__item">
   <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        双入口
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         请求路径
@@ -1370,6 +1381,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../changelog/v0.1.2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v0.1.2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../changelog/v0.1.1/" class="md-nav__link">
         
   
@@ -1467,7 +1506,7 @@
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        双入口
+        搜索与细化
       
     </span>
   </a>
@@ -1476,6 +1515,17 @@
       
         <li class="md-nav__item">
   <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        双入口
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         请求路径
@@ -1540,11 +1590,20 @@
 <li><code>languages/</code>：Python 和 C++ 适配。</li>
 <li><code>workspace/</code>：Git Worktree 和 Patch 管理。</li>
 <li><code>storage/</code>：事件、投影和产物持久化。</li>
+<li><code>profiling/</code>：Python/C++ 性能分析适配。</li>
 <li><code>security/</code>：凭证与脱敏。</li>
 <li><code>policy/</code>：策略决策。</li>
 <li><code>approval/</code>：人工审批。</li>
 </ul>
-<h2 id="_3">双入口<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<h2 id="_3">搜索与细化<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>Runtime 在 Decide 之后会判断下一步：</p>
+<ul>
+<li>方向有显著正向证据但未满足接受条件：重新打开当前候选，执行同候选细化。</li>
+<li>没有可测收益或方向错误：保留候选记录，创建新候选并继续搜索。</li>
+<li>达到接受条件：结束搜索并进入报告流程。</li>
+</ul>
+<p>每个阶段只向模型暴露 <code>PHASE_TOOL_ALLOWLIST</code> 中的工具。阶段提示会注入剩余模型轮次、剩余工具调用数、候选自检计数和阶段回退原因。</p>
+<h2 id="_4">双入口<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
 <p>系统同时提供两个入口：</p>
 <table>
 <thead>
@@ -1568,7 +1627,7 @@
 </tbody>
 </table>
 <p>两个入口最终都调用相同的 Application Services、Runtime、验证和存储层。</p>
-<h2 id="_4">请求路径<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h2 id="_5">请求路径<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
 <p>CLI 或 VS Code 命令进入 <code>application</code> 后，业务流程会驱动 <code>runtime</code> Agent。Agent 通过 <code>tools</code> 修改候选 Worktree，通过 <code>providers</code> 调用模型，通过 <code>languages</code> 适配 Python/C++，再通过 <code>workspace</code> 管理 Git 状态，通过 <code>storage</code> 持久化事件和产物。Policy、Approval 和 Sandbox 在执行高风险动作时提供约束。</p>
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import fnmatch
 import json
 import re
@@ -62,6 +63,15 @@ class ContractObligation(BaseModel):
     kind: str = Field(default="behavior", min_length=1)
 
 
+class ScalingInput(BaseModel):
+    """One benchmark input at a declared problem size."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, extra="ignore")
+
+    size: int = Field(gt=0)
+    input: str = ""
+
+
 class ProjectContract(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, extra="ignore")
 
@@ -77,6 +87,8 @@ class ProjectContract(BaseModel):
     performance_goal: str = ""
     must_not_change: tuple[str, ...] = ()
     protected_files: tuple[str, ...] = ()
+    benchmark_scaling: tuple[ScalingInput, ...] = ()
+    benchmark_harness: str = ""
     unknowns: tuple[str, ...] = ()
     test_obligations: tuple[ContractObligation, ...] = ()
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
@@ -150,6 +162,31 @@ class ContractDiscoveryService:
                         "Those files are optimization targets, not protected artifacts.\n\n"
                         f"{contract_test_instruction}\n\n"
                         f"{_contract_test_instruction_extra()}\n\n"
+                        "If the entrypoint reads its input from stdin, also populate "
+                        "benchmarkScaling with a small family of valid inputs at increasing "
+                        "problem sizes: 2 to 4 entries, each with the declared size and the "
+                        "exact stdin content. Sizes must increase, must be larger than the "
+                        "trivial case, and each input must satisfy every input constraint you "
+                        "found. These inputs are measured, so they must be deterministic and "
+                        "must not be so large that a run takes more than a few seconds. Leave "
+                        "benchmarkScaling empty when the program does not read stdin or when "
+                        "you cannot construct valid inputs.\n\n"
+                        "Most of these programs finish their real workload in microseconds while "
+                        "starting the interpreter costs tens of milliseconds, so timing the whole "
+                        "process measures start-up instead of the code. When the module exposes "
+                        "lower-level public APIs, populate benchmarkHarness with one complete, "
+                        "self-contained Python script that imports the module once, builds a "
+                        "deterministic set of multiple input cases, and exercises those APIs with "
+                        "varying inputs on every iteration. Do not repeat one identical "
+                        "deterministic call with the same constant arguments, because that lets a "
+                        "global result cache replace the measured work. Prefer direct calls to "
+                        "core public APIs over repeatedly calling one fixed workload wrapper. "
+                        "The script must take the iteration count from sys.argv[1], default to "
+                        "1000, read nothing from stdin, print exactly one line of the form "
+                        "'rounds=<n> workload=<seconds>s', and exit 0. Set a module into "
+                        "sys.modules before exec_module when loading by path. Leave "
+                        "benchmarkHarness empty for other languages, or when no suitable public "
+                        "APIs exist.\n\n"
                         f"Language: {language}\n\nProject snapshot:\n{snapshot}\n\n"
                         f"JSON schema:\n{schema}"
                     ),
@@ -267,6 +304,61 @@ class ContractDiscoveryService:
         except (ProviderError, ValueError, json.JSONDecodeError):
             return contract
         return contract.model_copy(update={"contract_test_source": source})
+
+    async def repair_benchmark_harness(
+        self,
+        contract: ProjectContract,
+        *,
+        root: str | Path,
+        failure: str,
+    ) -> ProjectContract:
+        project_root = Path(root).resolve()
+        try:
+            provider, model = build_provider(
+                self._context.config,
+                redactor=self._context.secret_redactor,
+            )
+        except ProviderError:
+            return contract
+        request = ModelRequest(
+            request_id=f"req_{uuid4().hex}",
+            model=model,
+            system=SYSTEM_RULES,
+            messages=(
+                Message(
+                    role="user",
+                    content=(
+                        "Repair benchmarkHarness below. It must vary input on every "
+                        "iteration and must not repeatedly call one deterministic "
+                        "entrypoint with identical constant arguments. Prefer direct "
+                        "calls to the core public APIs over a fixed workload wrapper. "
+                        "Keep it self-contained, deterministic, and compatible with "
+                        "the existing contract. Return JSON only with one field: "
+                        '{"benchmarkHarness": "..."}.\n\n'
+                        f"Failure:\n{failure}\n\n"
+                        "Current harness:\n"
+                        f"{contract.benchmark_harness}"
+                    ),
+                ),
+            ),
+            response_format={"type": "json_object"},
+            timeout_seconds=180,
+            metadata={"stage": "benchmark_harness_repair"},
+        )
+        try:
+            response = await self._complete_model(
+                provider,
+                request,
+                project_root=project_root,
+                stage="benchmark_harness_repair",
+            )
+            payload = json.loads(response.text)
+            source = payload.get("benchmarkHarness", "")
+            if not isinstance(source, str) or not source.strip():
+                return contract
+        except (ProviderError, ValueError, json.JSONDecodeError):
+            return contract
+        return contract.model_copy(update={"benchmark_harness": source})
 
     async def _complete_model(
         self,
@@ -553,6 +645,78 @@ def _source_snapshot(root: Path) -> str:
         chunks.append(chunk)
         total += len(chunk.encode("utf-8"))
     return "".join(chunks)
+
+
+def benchmark_harness_issue(source: str) -> str | None:
+    """Reject harnesses whose fixed loop can be replaced by one cached result."""
+
+    if not source.strip():
+        return None
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as exc:
+        return f"benchmarkHarness is not valid Python: {exc}"
+
+    for loop in (node for node in ast.walk(tree) if isinstance(node, (ast.For, ast.While))):
+        loop_targets = _loop_target_names(loop)
+        for call in (node for node in ast.walk(loop) if isinstance(node, ast.Call)):
+            name = _call_name(call)
+            if not name or name in _BENCHMARK_HARNESS_ALLOWED_CONSTANT_CALLS:
+                continue
+            if _call_depends_on_loop_target(call, loop_targets):
+                continue
+            argument_nodes = [*call.args, *(keyword.value for keyword in call.keywords)]
+            if not argument_nodes:
+                continue
+            if not any(
+                isinstance(node, ast.Name)
+                for argument in argument_nodes
+                for node in ast.walk(argument)
+            ):
+                return (
+                    f"benchmarkHarness repeatedly calls {name} with constant arguments "
+                    "inside a loop; vary inputs or call lower-level APIs instead"
+                )
+    return None
+
+
+_BENCHMARK_HARNESS_ALLOWED_CONSTANT_CALLS = {
+    "dict",
+    "float",
+    "int",
+    "len",
+    "list",
+    "perf_counter",
+    "print",
+    "range",
+    "set",
+    "str",
+    "time.perf_counter",
+}
+
+
+def _loop_target_names(loop: ast.For | ast.While) -> set[str]:
+    if isinstance(loop, ast.For):
+        return {node.id for node in ast.walk(loop.target) if isinstance(node, ast.Name)}
+    return set()
+
+
+def _call_name(call: ast.Call) -> str | None:
+    if isinstance(call.func, ast.Name):
+        return call.func.id
+    if isinstance(call.func, ast.Attribute):
+        prefix = call.func.value.id if isinstance(call.func.value, ast.Name) else None
+        return f"{prefix}.{call.func.attr}" if prefix else call.func.attr
+    return None
+
+
+def _call_depends_on_loop_target(call: ast.Call, targets: set[str]) -> bool:
+    if not targets:
+        return False
+    return any(
+        isinstance(node, ast.Name) and node.id in targets
+        for node in ast.walk(call)
+    )
 
 
 def _normalize_contract_test_source(source: str) -> str:

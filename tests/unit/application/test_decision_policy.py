@@ -35,8 +35,8 @@ class AcceptancePolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(DecisionError, "variation exceeds"):
             service._validate_acceptance_thresholds(
                 {
-                    "baseline_summary": {"variation_percent": 6.0},
-                    "candidate_summary": {"variation_percent": 1.0},
+                    "baseline_summary": {"robust_variation_percent": 6.0},
+                    "candidate_summary": {"robust_variation_percent": 1.0},
                 },
                 {"valid": True, "improvement_percent": 10.0},
             )
@@ -59,8 +59,60 @@ class AcceptancePolicyTests(unittest.TestCase):
                 "improvement_percent": 3.0,
                 "statistically_significant": True,
                 "p_value": 0.01,
+                "pairing": "paired",
+                "ci_lower": 1.0,
+                "ci_upper": 5.0,
             },
         )
+
+    def test_accepts_raw_variation_when_robust_variation_is_low(self) -> None:
+        service = self._service(
+            AcceptancePolicyConfig(
+                min_median_improvement_percent=2.0,
+                max_variation_percent=15.0,
+            )
+        )
+
+        service._validate_acceptance_thresholds(
+            {
+                "baseline_summary": {
+                    "variation_percent": 30.0,
+                    "robust_variation_percent": 3.0,
+                },
+                "candidate_summary": {
+                    "variation_percent": 25.0,
+                    "robust_variation_percent": 4.0,
+                },
+            },
+            {
+                "valid": True,
+                "improvement_percent": 10.0,
+                "statistically_significant": True,
+                "p_value": 0.01,
+                "pairing": "paired",
+                "ci_lower": 5.0,
+                "ci_upper": 15.0,
+            },
+        )
+
+    def test_rejects_confidence_interval_crossing_zero(self) -> None:
+        service = self._service(
+            AcceptancePolicyConfig(min_median_improvement_percent=-1000.0)
+        )
+
+        with self.assertRaisesRegex(DecisionError, "confidence interval"):
+            service._validate_acceptance_thresholds(
+                {},
+                {
+                    "valid": True,
+                    "improvement_percent": 10.0,
+                    "statistically_significant": True,
+                    "p_value": 0.04,
+                    "pairing": "paired",
+                    "ci_lower": -1.0,
+                    "ci_upper": 12.0,
+                },
+            )
 
     def test_rejects_improvement_without_statistical_significance(self) -> None:
         service = self._service(AcceptancePolicyConfig(min_median_improvement_percent=-1000.0))

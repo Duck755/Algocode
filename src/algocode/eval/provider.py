@@ -33,6 +33,43 @@ class PhaseScriptedProvider:
                         "summary": "Evaluation project analyzed.",
                         "language": self.task.language,
                         "files": [{"path": next(iter(self.task.files)), "role": "entrypoint"}],
+                        "problemStructure": {
+                            "inputModel": "stdin case defined by the evaluation task",
+                            "dataDistribution": "fixed evaluation input",
+                            "operationAlgebra": "the task operations are deterministic",
+                            "queryUpdateMix": "single run per case",
+                            "monotonicity": "not applicable",
+                            "constraints": ["output must stay byte-identical"],
+                        },
+                        "complexityBaseline": {
+                            "current": "the task baseline",
+                            "knownBest": "a faster known approach exists",
+                            "gap": "constant-factor overhead in the hot path",
+                            "reasoning": "the prepared patch removes redundant work",
+                        },
+                        "algorithmCandidates": [
+                            {
+                                "name": "prepared patch",
+                                "paradigm": "implementation",
+                                "complexity": "unchanged",
+                                "applicability": "always",
+                                "expectedGain": "removes redundant work",
+                            },
+                            {
+                                "name": "memoization",
+                                "paradigm": "caching",
+                                "complexity": "amortized lower",
+                                "applicability": "repeated subproblems",
+                                "expectedGain": "avoids repeated computation",
+                            },
+                            {
+                                "name": "branch elimination",
+                                "paradigm": "control flow",
+                                "complexity": "unchanged",
+                                "applicability": "predictable branches",
+                                "expectedGain": "fewer mispredictions",
+                            },
+                        ],
                         "optimizationCandidates": [
                             {
                                 "id": "optimize",
@@ -58,6 +95,11 @@ class PhaseScriptedProvider:
                 {
                     "summary": self.task.objective,
                     "strategy": "Apply the candidate patch.",
+                    "algorithm": "prepared patch",
+                    "complexityBefore": "the task baseline",
+                    "complexityAfter": "unchanged complexity, less work",
+                    "whyFaster": "redundant work is removed from the hot path",
+                    "structureRef": "problemStructure.inputModel",
                     "steps": [
                         {
                             "id": "s1",

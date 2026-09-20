@@ -148,10 +148,11 @@ Correctness 默认策略。
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `requireCorrectness` | bool | `true` | Correctness 未通过时禁止接受。 |
-| `minMedianImprovementPercent` | float | `0.0` | 最小 Median 提升百分比。 |
+| `requireStatisticallySignificant` | bool | `true` | 要求配对统计检验显著，且置信区间不跨过 0。 |
+| `minMedianImprovementPercent` | float | `2.0` | 最小配对 Median 提升百分比。 |
 | `maxPeakMemoryRegressionPercent` | float / null | `null` | 允许的最大峰值内存回退百分比。 |
 | `maxCompileTimeRegressionPercent` | float / null | `null` | 允许的最大编译时间回退百分比。 |
-| `maxVariationPercent` | float / null | `null` | 允许的最大样本波动百分比。 |
+| `maxVariationPercent` | float / null | `15.0` | 允许的最大 MAD 鲁棒波动百分比；原始波动只作为质量警告。 |
 
 ## `storage`
 

@@ -9,7 +9,7 @@ from pathlib import Path
 from algocode.bootstrap import build_context
 from algocode.correctness.spec import CorrectnessCase, CorrectnessSpec
 from algocode.domain.events import EventEnvelope, EventType
-from algocode.domain.model import CandidateStatus, TaskPhase, TaskStatus
+from algocode.domain.model import CandidateStatus, DecisionOutcome, TaskPhase, TaskStatus
 from algocode.providers.errors import AuthenticationError, ContextOverflowError
 from algocode.providers.fake import DeterministicFakeProvider
 from algocode.providers.types import ModelRequest, ModelResponse, ToolCall
@@ -42,6 +42,39 @@ class CoverageAnalysisProvider:
                         "summary": "Project analyzed from two read passes.",
                         "language": "python",
                         "files": [{"path": "main.py", "role": "algorithm"}],
+                        "problemStructure": {
+                            "inputModel": "stdin",
+                            "dataDistribution": "uniform",
+                            "operationAlgebra": "associative",
+                            "queryUpdateMix": "read-only",
+                            "monotonicity": "none",
+                        },
+                        "complexityBaseline": {
+                            "current": "O(n^2)",
+                            "knownBest": "O(n log n)",
+                            "gap": "pairwise scan",
+                            "reasoning": "sorting removes the scan",
+                        },
+                        "algorithmCandidates": [
+                            {
+                                "name": "sort and scan",
+                                "paradigm": "sorting",
+                                "complexity": "O(n log n)",
+                                "applicability": "comparable keys",
+                            },
+                            {
+                                "name": "hash index",
+                                "paradigm": "hashing",
+                                "complexity": "O(n)",
+                                "applicability": "exact keys",
+                            },
+                            {
+                                "name": "two pointers",
+                                "paradigm": "greedy",
+                                "complexity": "O(n)",
+                                "applicability": "sorted input",
+                            },
+                        ],
                         "optimizationCandidates": [
                             {"id": "localize", "description": "Optimize the hot loop"}
                         ],
@@ -57,6 +90,11 @@ class CoverageAnalysisProvider:
                         arguments={
                             "summary": "Optimize the hot loop.",
                             "strategy": "Localize the expensive operation.",
+                            "algorithm": "sort and scan",
+                            "complexityBefore": "O(n^2)",
+                            "complexityAfter": "O(n log n)",
+                            "whyFaster": "removes the pairwise scan",
+                            "structureRef": "problemStructure.operationAlgebra",
                             "steps": [
                                 {
                                     "id": "edit-main",
@@ -262,6 +300,37 @@ class CandidateCreatingProvider:
 class NoToolProvider:
     async def complete(self, request: ModelRequest) -> ModelResponse:
         return ModelResponse(text="verification failed and I am stopping")
+
+
+class CountingProvider:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def complete(self, request: ModelRequest) -> ModelResponse:
+        self.calls += 1
+        return ModelResponse(text="unexpected model call")
+
+
+class BudgetCapturingProvider:
+    def __init__(self) -> None:
+        self.request_text = ""
+
+    async def complete(self, request: ModelRequest) -> ModelResponse:
+        self.request_text = "\n".join(message.content for message in request.messages)
+        phase = str(request.metadata.get("phase", ""))
+        return ModelResponse(
+            tool_calls=(
+                ToolCall(
+                    id=f"submit_{phase}",
+                    name="submit_phase_result",
+                    arguments={
+                        "phase": phase,
+                        "status": "completed",
+                        "summary": "budget observed",
+                    },
+                ),
+            )
+        )
 
 
 class PatchThenSubmitWithoutCheckProvider:
@@ -475,6 +544,27 @@ class AgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(EventType.CONTEXT_ASSEMBLED, event_types)
         self.assertIn(EventType.TASK_COMPLETED, event_types)
 
+    async def test_turn_budget_is_visible_to_model_and_persisted(self) -> None:
+        provider = BudgetCapturingProvider()
+
+        result = await self._runtime(provider).run(
+            self.task.id,
+            stop_after=TaskPhase.CREATE,
+        )
+
+        self.assertEqual(result.status, TaskStatus.COMPLETED.value)
+        self.assertIn("model_turn=1/30", provider.request_text)
+        self.assertIn(
+            "remaining_model_turns_including_this_turn=30",
+            provider.request_text,
+        )
+        events = await self.context.event_store.read(str(self.task.id))
+        turn_event = next(
+            event for event in events if event.type is EventType.AGENT_TURN_STARTED
+        )
+        self.assertEqual(turn_event.payload["remaining_turns"], 29)
+        self.assertEqual(turn_event.payload["remaining_tool_calls"], 50)
+
     async def test_tool_budget_blocks_phase(self) -> None:
         result = await self._runtime(
             AlwaysToolProvider(),
@@ -488,6 +578,10 @@ class AgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def test_phase_tool_visibility_matrix(self) -> None:
         runtime = self._runtime(DeterministicFakeProvider())
         expected = {
+            TaskPhase.CREATE: {
+                "get_task_state",
+                "submit_phase_result",
+            },
             TaskPhase.ANALYZE: {
                 "list_files",
                 "read_file",
@@ -496,22 +590,32 @@ class AgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 "get_task_state",
                 "read_resource",
             },
+            TaskPhase.BASELINE: {
+                "get_task_state",
+                "submit_phase_result",
+            },
             TaskPhase.PLAN: {
                 "submit_optimization_plan",
+                "read_file",
+                "search_code",
+                "list_files",
+                "get_task_state",
             },
             TaskPhase.GENERATE_CANDIDATE: {
                 "create_candidate",
                 "get_task_state",
             },
             TaskPhase.IMPLEMENT: {
+                "read_file",
+                "list_files",
+                "search_code",
                 "apply_patch",
                 "write_file",
                 "edit_file",
                 "run_candidate_check",
-                "submit_phase_result",
                 "get_candidate_diff",
                 "get_task_state",
-                "read_file",
+                "submit_phase_result",
             },
             TaskPhase.VERIFY: {
                 "build",
@@ -520,27 +624,37 @@ class AgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 "get_candidate_diff",
                 "get_task_state",
                 "read_file",
+                "list_files",
+                "search_code",
             },
             TaskPhase.BENCHMARK: {
                 "run_benchmark",
                 "get_candidate_diff",
                 "get_task_state",
                 "read_file",
+                "list_files",
+                "search_code",
             },
             TaskPhase.COMPARE: {
                 "read_file",
                 "get_task_state",
                 "submit_phase_result",
+                "list_files",
+                "search_code",
             },
             TaskPhase.DECIDE: {
                 "read_file",
                 "get_task_state",
                 "submit_phase_result",
+                "list_files",
+                "search_code",
             },
             TaskPhase.REPORT: {
                 "read_file",
                 "get_task_state",
                 "submit_phase_result",
+                "list_files",
+                "search_code",
             },
         }
 
@@ -777,6 +891,43 @@ class AgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(candidates[0].status, CandidateStatus.GENERATED)
         self.assertNotIn(TaskPhase.VERIFY.value, result.completed_phases)
 
+    async def test_decided_candidate_does_not_reenter_implement(self) -> None:
+        await self.context.baseline_service.capture(self.task.id)
+        candidate = await self.context.candidate_service.create(self.task.id)
+        await self.context.decision_service.record_outcome(
+            self.task.id,
+            candidate.id,
+            DecisionOutcome.INCONCLUSIVE,
+            reason="benchmark evidence is invalid",
+        )
+        events = await self.context.event_store.read(str(self.task.id))
+        seq = events[-1].seq + 1
+        await self.context.event_store.append(
+            str(self.task.id),
+            seq - 1,
+            (
+                EventEnvelope(
+                    id="evt_decided_implement_resume",
+                    aggregate_id=str(self.task.id),
+                    seq=seq,
+                    type=EventType.TASK_PHASE_CHANGED,
+                    payload={"current_phase": "implement", "status": "running"},
+                ),
+            ),
+        )
+        provider = CountingProvider()
+
+        result = await self._runtime(
+            provider,
+            candidate_service=self.context.candidate_service,
+            decision_service=self.context.decision_service,
+            database=self.context.database,
+        ).run(self.task.id, stop_after=TaskPhase.IMPLEMENT)
+
+        self.assertEqual(result.status, TaskStatus.WAITING_USER.value)
+        self.assertEqual(provider.calls, 0)
+        self.assertIn("cannot resume after a decision", result.summary)
+
     async def test_context_overflow_compacts_and_retries(self) -> None:
         provider = OverflowOnceProvider()
         result = await self._runtime(provider).run(
@@ -997,6 +1148,11 @@ class AgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         plan = OptimizationPlan(
             summary="continue",
             strategy="continue from the previous attempt",
+            algorithm="same",
+            complexity_before="unchanged",
+            complexity_after="unchanged",
+            why_faster="continues the existing direction",
+            structure_ref="problemStructure.inputModel",
             steps=[{"id": "s1", "description": "Continue."}],
             retry_decision=RetryDecision(
                 mode="continue",

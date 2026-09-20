@@ -10,6 +10,7 @@ from algocode.application.services.contract_service import (
     ContractObligation,
     ProjectContract,
     PublicApiItem,
+    benchmark_harness_issue,
     contract_to_objective,
 )
 
@@ -102,6 +103,28 @@ class ContractCompilerTests(unittest.TestCase):
             )
             self.assertIn(".relative_to(ROOT).parts", generated)
             self.assertNotIn("not in p.parts", generated)
+
+
+class BenchmarkHarnessValidationTests(unittest.TestCase):
+    def test_constant_workload_loop_is_rejected(self) -> None:
+        issue = benchmark_harness_issue(
+            "for _ in range(rounds):\n"
+            "    mod.run_workload(seed=42)\n"
+        )
+
+        self.assertIsNotNone(issue)
+        self.assertIn("constant arguments", issue or "")
+
+    def test_varying_api_calls_are_accepted(self) -> None:
+        issue = benchmark_harness_issue(
+            "for pattern, text in cases:\n"
+            "    node = mod.Parser(pattern).parse()\n"
+            "    builder = mod.NFABuilder()\n"
+            "    start, end = builder.compile(node)\n"
+            "    mod.NFAMatcher(builder.states, start, end).search(text)\n"
+        )
+
+        self.assertIsNone(issue)
 
 
 if __name__ == "__main__":

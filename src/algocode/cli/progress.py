@@ -10,7 +10,7 @@ errors: progress must never break the command it narrates.
 
 from __future__ import annotations
 
-import shutil
+import os
 import sys
 import threading
 import time
@@ -79,11 +79,31 @@ def supports_unicode(stream: TextIO | None = None) -> bool:
     return _supports_unicode(stream if stream is not None else sys.stdout)
 
 
-def display_width(text: str) -> int:
-    """Terminal cell width, counting East Asian wide characters as two."""
-    return sum(
-        2 if unicodedata.east_asian_width(char) in {"W", "F"} else 1 for char in text
-    )
+def display_width(text: str, *, ambiguous_wide: bool = False) -> int:
+    """Terminal cell width, counting East Asian wide characters as two.
+
+    ``ambiguous_wide`` also counts East Asian *ambiguous* characters (box
+    drawing, arrows, the middle dot) as two cells, which is how CJK terminal
+    fonts render them. The rail separator and the active marker are built from
+    such characters, so the wrong width model misplaces the marker.
+    """
+    wide = {"W", "F", "A"} if ambiguous_wide else {"W", "F"}
+    return sum(2 if unicodedata.east_asian_width(char) in wide else 1 for char in text)
+
+
+def _infer_ambiguous_wide() -> bool:
+    """Return whether East Asian ambiguous glyphs occupy two terminal cells.
+
+    CJK console fonts on Windows draw box drawing, arrow, and middle-dot
+    glyphs at double width, while most Linux terminals keep them narrow.
+    ``ALGOCODE_AMBIGUOUS_WIDTH=wide|narrow`` overrides the guess.
+    """
+    override = os.environ.get("ALGOCODE_AMBIGUOUS_WIDTH", "").strip().lower()
+    if override in {"wide", "2", "full"}:
+        return True
+    if override in {"narrow", "1", "half"}:
+        return False
+    return sys.platform == "win32"
 
 
 def _pad(text: str, width: int) -> str:
@@ -145,6 +165,7 @@ class StageReporter:
         enabled: bool = True,
         color: bool | None = None,
         unicode: bool | None = None,
+        ambiguous_wide: bool | None = None,
     ) -> None:
         self._stages = tuple(stages)
         self._title = title
@@ -152,6 +173,9 @@ class StageReporter:
         self._enabled = bool(enabled) and bool(self._stages)
         self._interactive = self._enabled and _is_tty(self._stream)
         self._color = self._interactive if color is None else bool(color) and self._interactive
+        self._ambiguous_wide = (
+            _infer_ambiguous_wide() if ambiguous_wide is None else ambiguous_wide
+        )
         if unicode is True:
             self._glyphs = _UNICODE_GLYPHS
         elif unicode is False:
@@ -165,6 +189,7 @@ class StageReporter:
         self._index = -1
         self._detail = ""
         self._stage_started_at: float | None = None
+        self._completion_lines: list[str] = []
         self._drawn = 0
         self._lock = threading.RLock()
         self._thread: threading.Thread | None = None
@@ -223,6 +248,9 @@ class StageReporter:
             return text
         return f"{code}{text}{_RESET}"
 
+    def _width(self, text: str) -> int:
+        return display_width(text, ambiguous_wide=self._ambiguous_wide)
+
     def _elapsed_stage(self) -> float:
         if self._stage_started_at is None:
             return 0.0
@@ -274,7 +302,14 @@ class StageReporter:
                 self._index = -1
                 self._detail = ""
             if self._interactive:
+                suffix = f" · {detail}" if detail else ""
+                elapsed = format_duration(self._durations[index] or 0.0)
+                self._completion_lines.append(
+                    f"{self._title}:  {label} {self._glyphs['done'].strip()} "
+                    f"({elapsed}){suffix}"
+                )
                 self._render_locked()
+                self._flush()
             else:
                 suffix = f" · {detail}" if detail else ""
                 elapsed = format_duration(self._durations[index] or 0.0)
@@ -291,11 +326,13 @@ class StageReporter:
             self._durations[index] = self._elapsed_stage()
             self._index = -1
             if self._interactive:
-                self._render_locked()
-                self._drawn = 0  # keep the failed rail on screen
-                self._stream.write(f"{self._title} {self._glyphs['failed']} {reason}\n")
+                self._completion_lines.append(
+                    f"{self._title}: {self._stages[index]} "
+                    f"{self._glyphs['failed'].strip()}: {reason}"
+                )
                 if hint:
-                    self._stream.write(f"{self._title}   {hint}\n")
+                    self._completion_lines.append(f"{self._title}   {hint}")
+                self._render_locked()
                 self._flush()
             else:
                 extra = f" ({hint})" if hint else ""
@@ -304,9 +341,9 @@ class StageReporter:
     def _note(self, text: str) -> None:
         with self._lock:
             if self._interactive:
-                self._erase_locked()
-                self._stream.write(f"{self._title} {self._glyphs['note']} {text}\n")
-                self._flush()
+                self._completion_lines.append(
+                    f"{self._title} {self._glyphs['note']} {text}"
+                )
                 self._render_locked()
             else:
                 self._plain(f"{self._glyphs['note']} {text}")
@@ -318,6 +355,10 @@ class StageReporter:
             thread.join(timeout=1.0)
         with self._lock:
             self._erase_locked()
+            if self._completion_lines:
+                self._stream.write("\n".join(self._completion_lines) + "\n")
+            else:
+                self._stream.write("\n")
             self._flush()
 
     def _ensure_ticker(self) -> None:
@@ -336,19 +377,22 @@ class StageReporter:
                 continue
 
     def _rail(self) -> tuple[str, str, int]:
-        """Return (plain rail, styled rail, plain offset of the active node)."""
+        """Return (plain rail, styled rail, cell offset of the active node).
+
+        Offsets are terminal cells, not characters: CJK stage labels and the
+        box-drawing separators occupy more cells than ``len`` reports.
+        """
         sep_plain = self._glyphs["arrow"]
         sep_styled = self._paint(sep_plain, _DIM)
         plain_nodes: list[str] = []
         styled_nodes: list[str] = []
         offsets: list[int] = []
-        cursor = len(self._title) + 2
+        cursor = self._width(self._title) + 2
         for index, label in enumerate(self._stages):
             status = self._status[index]
             if status == _DONE:
-                plain = f"{label}{self._glyphs['done']}"
-                styled = self._paint(plain, _GREEN)
-            elif status == _ACTIVE:
+                continue
+            if status == _ACTIVE:
                 plain = f"[{label}]"
                 styled = self._paint(plain, f"{_CYAN}{_BOLD}")
             elif status == _FAILED:
@@ -360,28 +404,27 @@ class StageReporter:
             offsets.append(cursor)
             plain_nodes.append(plain)
             styled_nodes.append(styled)
-            cursor += len(plain) + len(sep_plain)
+            cursor += self._width(plain) + self._width(sep_plain)
         plain_rail = f"{self._title}  " + sep_plain.join(plain_nodes)
         styled_rail = self._paint(self._title, _BOLD) + "  " + sep_styled.join(styled_nodes)
-        active_offset = offsets[self._index] if 0 <= self._index < len(offsets) else 0
+        active_offset = self._width(self._title) + 2 if self._index >= 0 else 0
         return plain_rail, styled_rail, active_offset
 
     def _build_lines(self) -> list[str]:
-        plain_rail, styled_rail, active_offset = self._rail()
-        columns = shutil.get_terminal_size((100, 24)).columns
-        if len(plain_rail) > columns and self._index >= 0:
-            label = self._stages[self._index]
-            compact = f"{self._title} [{self._index + 1}/{len(self._stages)}] {label}"
-            lines = [self._paint(compact, _BOLD)]
-            active_offset = 0
-        else:
-            lines = [styled_rail]
+        visible = [index for index, status in enumerate(self._status) if status != _DONE]
+        if not visible:
+            return list(self._completion_lines)
+        _plain_rail, styled_rail, active_offset = self._rail()
+        lines = [styled_rail]
         if self._index >= 0:
-            text = self._detail or "进行中"
+            detail = self._detail or "进行中"
             elapsed = format_duration(self._elapsed_stage())
             marker = self._glyphs["active"]
             indent = " " * max(0, active_offset)
-            lines.append(f"{indent}{self._paint(marker, _CYAN)} {text} · {elapsed}")
+            lines.append(
+                f"{indent}{self._paint(marker, _CYAN)} {detail} · {elapsed}"
+            )
+        lines.extend(self._completion_lines)
         return lines
 
     def _render_locked(self) -> None:
@@ -389,19 +432,17 @@ class StageReporter:
             return
         self._write_block_locked(self._build_lines())
 
+    def _refresh_detail_locked(self) -> None:
+        self._render_locked()
+
     def _write_block_locked(self, lines: Sequence[str]) -> None:
         self._erase_locked()
-        self._stream.write("".join(f"{line}\n" for line in lines))
+        self._stream.write("\n".join(lines) + "\n")
         self._flush()
         self._drawn = len(lines)
 
     def _erase_locked(self) -> None:
         if not self._interactive or self._drawn <= 0:
             return
-        buffer = [f"\x1b[{self._drawn}A"]
-        for _ in range(self._drawn):
-            buffer.append("\x1b[2K")
-            buffer.append("\x1b[1B")
-        buffer.append(f"\x1b[{self._drawn}A")
-        self._stream.write("".join(buffer))
+        self._stream.write(f"\x1b[{self._drawn}A\r\x1b[0J")
         self._drawn = 0

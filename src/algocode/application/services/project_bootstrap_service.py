@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
@@ -14,6 +15,9 @@ import yaml
 from algocode.application.services.contract_service import (
     ContractCompiler,
     ContractDiscoveryService,
+    ProjectContract,
+    ScalingInput,
+    benchmark_harness_issue,
 )
 from algocode.application.services.project_state import (
     find_current_task,
@@ -221,7 +225,7 @@ class ProjectBootstrapService:
         bootstrap_message = ""
         emit("start", "specs")
         if selected_language is Language.PYTHON:
-            generated = await self._bootstrap_python(root)
+            generated = await self._bootstrap_python(root, contract)
             bootstrap_status = "completed"
         elif selected_language is Language.CPP:
             generated = await self._bootstrap_cpp(root)
@@ -229,6 +233,10 @@ class ProjectBootstrapService:
         else:
             emit("note", "specs", "未识别项目语言，已跳过规格生成")
         emit("finish", "specs", f"{len(generated)} 个文件" if generated else "跳过")
+
+        scaled_files = await self._prepare_benchmark_scale(root, layout, contract, emit)
+        if scaled_files:
+            generated = (*generated, *scaled_files)
 
         commit_created = await repository.commit_all("algocode: initialize project")
         project = await self._context.project_service.register(root, write_config=False)
@@ -250,6 +258,14 @@ class ProjectBootstrapService:
                 task.id,
                 load_correctness_spec(layout.correctness_spec_path),
             )
+            if not correctness.passed and _drop_oracle_cases(layout.correctness_spec_path):
+                emit("detail", "correctness", "参考实现不可用，回退到契约校验")
+                correctness_run, correctness = (
+                    await self._context.correctness_service.run_baseline(
+                        task.id,
+                        load_correctness_spec(layout.correctness_spec_path),
+                    )
+                )
             if not correctness.passed:
                 emit("fail", "correctness", f"kind={correctness.failure_kind}")
                 raise RuntimeError(
@@ -263,10 +279,23 @@ class ProjectBootstrapService:
                 f"{correctness.passed_cases}/{len(correctness.cases)} passed",
             )
             emit("start", "benchmark")
+            benchmark_spec = load_benchmark_spec(layout.benchmark_spec_path)
             benchmark_run, benchmark_result = await self._context.benchmark_service.run_baseline(
                 task.id,
-                load_benchmark_spec(layout.benchmark_spec_path),
+                benchmark_spec,
             )
+            if (
+                benchmark_run.status is not BenchmarkStatus.COMPLETED
+                or not benchmark_result.valid
+            ) and benchmark_spec.inputs:
+                emit("detail", "benchmark", "多规模基准不可用，回退到单输入")
+                _drop_scaling_inputs(layout.benchmark_spec_path)
+                benchmark_run, benchmark_result = (
+                    await self._context.benchmark_service.run_baseline(
+                        task.id,
+                        load_benchmark_spec(layout.benchmark_spec_path),
+                    )
+                )
             if benchmark_run.status is not BenchmarkStatus.COMPLETED or not benchmark_result.valid:
                 emit("fail", "benchmark", "generated benchmark specification failed")
                 raise RuntimeError("generated benchmark specification failed")
@@ -381,7 +410,7 @@ class ProjectBootstrapService:
             if str(persisted_benchmark.id) != str(benchmark_run.id):
                 raise RuntimeError("bootstrap benchmark projection was not persisted")
 
-    async def _bootstrap_python(self, root: Path) -> tuple[str, ...]:
+    async def _bootstrap_python(self, root: Path, contract: ProjectContract) -> tuple[str, ...]:
         entry = _python_entrypoint(root)
         command = (sys.executable, str(entry))
         runner = self._context.language_registry.sandbox_runner
@@ -403,53 +432,62 @@ class ProjectBootstrapService:
         checker_path.parent.mkdir(parents=True, exist_ok=True)
         benchmark_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if not checker_path.exists():
-            checker_path.write_text(_CHECKER_SOURCE, encoding="utf-8")
+        # Drop the previous specs so they are rebuilt from the current contract
+        # and code instead of lingering from an earlier `init`.
+        correctness_path.unlink(missing_ok=True)
+        benchmark_path.unlink(missing_ok=True)
+
+        # Regenerate rather than keep what an earlier run left behind: a second
+        # `init` should describe the current contract and code, not a stale spec.
+        checker_path.write_text(_CHECKER_SOURCE, encoding="utf-8")
         if not correctness_path.exists():
+            correctness_cases: list[dict[str, object]] = [
+                {"id": "primary-output", "expected_output": expected_output}
+            ]
+            correctness_yaml: dict[str, object] = {
+                "schema_version": 1,
+                "mode": "cases",
+                "comparison": "checker-command",
+                "require_determinism": False,
+                "run_command": [sys.executable, entry.name],
+                "timeout_seconds": 60,
+                "cases": correctness_cases,
+                "checker_command": [
+                    sys.executable,
+                    ".algocode/oracle/check.py",
+                    "{candidate}",
+                    "{expected}",
+                ],
+            }
+            oracle_cases = _oracle_cases(contract)
+            if oracle_cases:
+                reference = layout.oracle_dir / "reference" / entry.name
+                reference.parent.mkdir(parents=True, exist_ok=True)
+                reference.write_text(entry.read_text(encoding="utf-8"), encoding="utf-8")
+                correctness_cases.extend(oracle_cases)
+                correctness_yaml["oracle_command"] = [
+                    sys.executable,
+                    f".algocode/oracle/reference/{entry.name}",
+                ]
             correctness_path.write_text(
-                yaml.safe_dump(
-                    {
-                        "schema_version": 1,
-                        "mode": "cases",
-                        "comparison": "checker-command",
-                        "require_determinism": False,
-                        "run_command": [sys.executable, entry.name],
-                        "timeout_seconds": 60,
-                        "cases": [
-                            {
-                                "id": "primary-output",
-                                "expected_output": expected_output,
-                            }
-                        ],
-                        "checker_command": [
-                            sys.executable,
-                            ".algocode/oracle/check.py",
-                            "{candidate}",
-                            "{expected}",
-                        ],
-                    },
-                    sort_keys=False,
-                ),
+                yaml.safe_dump(correctness_yaml, sort_keys=False),
                 encoding="utf-8",
             )
         if not benchmark_path.exists():
+            benchmark_yaml = _python_benchmark_spec(entry.name, contract)
             benchmark_path.write_text(
-                yaml.safe_dump(
-                    {
-                        "schema_version": 1,
-                        "scope": "stdin",
-                        "run_command": [sys.executable, entry.name],
-                        "warmup": 5,
-                        "repeats": 15,
-                        "timeout_seconds": 60,
-                        "metric": "wall_time",
-                        "direction": "minimize",
-                        "max_variation_percent": 5.0,
-                    },
-                    sort_keys=False,
-                ),
+                yaml.safe_dump(benchmark_yaml, sort_keys=False),
                 encoding="utf-8",
             )
+            # The harness has to exist before the bootstrap commit below: the
+            # baseline workspace is checked out from that commit, so a file written
+            # later would be missing where the benchmark actually runs.
+            harness_source = contract.benchmark_harness.strip()
+            if harness_source:
+                (benchmark_path.parent / "harness.py").write_text(
+                    harness_source,
+                    encoding="utf-8",
+                )
         generated = [
             ".algocode/config.yaml",
             ".algocode/.gitignore",
@@ -457,6 +495,12 @@ class ProjectBootstrapService:
             ".algocode/oracle/correctness.yaml",
             ".algocode/benchmarks/benchmark.yaml",
         ]
+        reference_path = layout.oracle_dir / "reference" / entry.name
+        if reference_path.is_file():
+            generated.append(reference_path.relative_to(root).as_posix())
+        harness_path = benchmark_path.parent / "harness.py"
+        if harness_path.is_file():
+            generated.append(harness_path.relative_to(root).as_posix())
         for relative in (".algocode/contract.json", ".algocode/oracle/contract_test.py"):
             if (root / relative).is_file():
                 generated.append(relative)
@@ -504,8 +548,10 @@ class ProjectBootstrapService:
         benchmark_path = layout.benchmark_spec_path
         checker_path.parent.mkdir(parents=True, exist_ok=True)
         benchmark_path.parent.mkdir(parents=True, exist_ok=True)
-        if not checker_path.exists():
-            checker_path.write_text(_CHECKER_SOURCE, encoding="utf-8")
+        # Same as the Python path: rebuild instead of reusing old specs.
+        correctness_path.unlink(missing_ok=True)
+        benchmark_path.unlink(missing_ok=True)
+        checker_path.write_text(_CHECKER_SOURCE, encoding="utf-8")
         if not correctness_path.exists():
             correctness_path.write_text(
                 yaml.safe_dump(
@@ -545,7 +591,7 @@ class ProjectBootstrapService:
                         "timeout_seconds": 60,
                         "metric": "wall_time",
                         "direction": "minimize",
-                        "max_variation_percent": 5.0,
+                        "max_variation_percent": 15.0,
                     },
                     sort_keys=False,
                 ),
@@ -565,6 +611,131 @@ class ProjectBootstrapService:
             if (root / relative).is_file():
                 generated.append(relative)
         return tuple(generated)
+
+    async def _prepare_benchmark_scale(
+        self,
+        root: Path,
+        layout: ProjectLayout,
+        contract: ProjectContract,
+        emit: Callable[..., None],
+    ) -> tuple[str, ...]:
+        """Point the benchmark at a repeating harness before the bootstrap commit.
+
+        The baseline workspace is checked out from that commit and every candidate
+        forks from it, so whatever the benchmark needs has to be committed here.
+        These programs run their real workload in microseconds while starting the
+        interpreter costs tens of milliseconds, so the plain command cannot
+        resolve a difference; repeat the workload inside one process instead.
+        """
+
+        if not contract.benchmark_harness.strip():
+            return ()
+        issue: str | None = None
+        discovery: ContractDiscoveryService | None = None
+        for _ in range(2):
+            issue = benchmark_harness_issue(contract.benchmark_harness)
+            if issue is None:
+                break
+            if discovery is None:
+                discovery = ContractDiscoveryService(self._context)
+            emit("note", "specs", f"benchmarkHarness 不合格，尝试修复：{issue}")
+            repaired = await discovery.repair_benchmark_harness(
+                contract,
+                root=root,
+                failure=issue,
+            )
+            if repaired.benchmark_harness == contract.benchmark_harness:
+                break
+            contract = repaired
+        if issue is not None:
+            emit("note", "specs", f"放弃不可信的 benchmarkHarness：{issue}")
+            return ()
+        spec_path = layout.benchmark_spec_path
+        harness = spec_path.parent / "harness.py"
+        harness.write_text(contract.benchmark_harness.strip() + "\n", encoding="utf-8")
+        layout.contract_path.write_text(
+            json.dumps(
+                contract.model_dump(by_alias=True, mode="json"),
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        try:
+            raw = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            return ()
+        if not isinstance(raw, dict):
+            return ()
+        command = raw.get("run_command")
+        if not isinstance(command, list) or not command:
+            return ()
+        rounds = await self._calibrate_harness(root, harness, str(command[0]))
+        if rounds is None:
+            return ()
+        scaled_command = _harness_command(
+            command,
+            harness.relative_to(root).as_posix(),
+            rounds,
+        )
+        if scaled_command is None:
+            return ()
+        raw["run_command"] = scaled_command
+        raw["scope"] = "process"
+        raw.pop("inputs", None)
+        spec_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+        emit("detail", "specs", f"使用 harness 重复 {rounds} 轮")
+        return (harness.relative_to(root).as_posix(),)
+
+
+    async def _calibrate_harness(
+        self,
+        root: Path,
+        harness: Path,
+        interpreter: str,
+    ) -> int | None:
+        """Pick a fixed repeat count that lands near the target duration.
+
+        Two probes at different repeat counts are differenced so the one-off cost
+        of starting the interpreter cancels out. Dividing a single probe by its
+        repeat count would spread that fixed cost over every round and overstate
+        the per-round cost by orders of magnitude, leaving the workload tiny.
+
+        The count is chosen once here and reused for every sample: an adaptive
+        count would make each measured process do a different amount of work and
+        would add more variance than it removes.
+        """
+
+        relative = harness.relative_to(root).as_posix()
+        low = await self._run_probe(root, (interpreter, relative, str(CALIBRATION_ROUNDS)))
+        high = await self._run_probe(
+            root,
+            (interpreter, relative, str(CALIBRATION_ROUNDS * CALIBRATION_STEPS)),
+        )
+        if low is None or high is None:
+            return None
+        per_round = (high - low) / (CALIBRATION_ROUNDS * (CALIBRATION_STEPS - 1))
+        if per_round <= 0:
+            return None
+        return max(CALIBRATION_ROUNDS, int(TARGET_BENCHMARK_SECONDS / per_round))
+
+
+    async def _run_probe(self, root: Path, command: tuple[str, ...]) -> float | None:
+        """Run a benchmark command once and return its wall-clock duration."""
+
+        runner = self._context.language_registry.sandbox_runner
+        result = await runner.run(
+            command,
+            cwd=root,
+            timeout_seconds=60,
+            input_bytes=b"",
+        )
+        if result.start_failed or result.timed_out or result.exit_code != 0:
+            return None
+        return result.duration_seconds
+
 
     async def _run_contract_test(
         self,
@@ -982,3 +1153,126 @@ def bootstrap_payload(result: BootstrapResult) -> dict[str, object]:
         "message": result.message,
         "state": find_current_task(result.project.root_path) or {},
     }
+
+
+MIN_SCALING_INPUTS = 2
+TARGET_BENCHMARK_SECONDS = 0.5
+CALIBRATION_ROUNDS = 200
+CALIBRATION_STEPS = 4
+
+
+def _harness_command(
+    command: list[object],
+    harness_relative: str,
+    rounds: int,
+) -> list[str] | None:
+    """Point a benchmark command at the harness, keeping its interpreter."""
+
+    if not command:
+        return None
+    return [str(command[0]), harness_relative, str(rounds)]
+MAX_SCALING_INPUTS = 6
+
+
+def _python_benchmark_spec(
+    entry_name: str,
+    contract: ProjectContract,
+) -> dict[str, object]:
+    spec: dict[str, object] = {
+        "schema_version": 1,
+        "scope": "process",
+        "run_command": [sys.executable, entry_name],
+        "warmup": 5,
+        "repeats": 15,
+        "timeout_seconds": 60,
+        "metric": "wall_time",
+        "direction": "minimize",
+        "max_variation_percent": 15.0,
+    }
+    scaling = _scaling_inputs(contract)
+    if scaling:
+        spec["scope"] = "stdin"
+        spec["inputs"] = scaling
+    return spec
+
+
+def _scaling_inputs(contract: ProjectContract) -> list[dict[str, object]]:
+    """Benchmark inputs that let the runtime measure growth across sizes.
+
+    The contract model proposes them; they are only used when at least two
+    increasing, non-trivial sizes survive validation. Anything else falls back
+    to the single default input.
+    """
+
+    usable = [item for item in contract.benchmark_scaling if item.size > 1 and item.input.strip()]
+    usable.sort(key=lambda item: item.size)
+    unique: list[ScalingInput] = []
+    seen: set[int] = set()
+    for item in usable:
+        if item.size in seen:
+            continue
+        seen.add(item.size)
+        unique.append(item)
+    if len(unique) < MIN_SCALING_INPUTS:
+        return []
+    return [
+        {"id": f"n{item.size}", "size": item.size, "input": item.input}
+        for item in unique[:MAX_SCALING_INPUTS]
+    ]
+
+
+def _drop_scaling_inputs(path: Path) -> None:
+    """Remove benchmark inputs so bootstrap can retry with the default input."""
+
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return
+    if not isinstance(raw, dict) or "inputs" not in raw:
+        return
+    raw.pop("inputs", None)
+    try:
+        path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    except OSError:
+        return
+
+
+def _oracle_cases(contract: ProjectContract) -> list[dict[str, object]]:
+    """Cases whose expectation comes from the untouched reference copy.
+
+    They reuse the validated scaling inputs, so a candidate that changes the
+    algorithm is compared against the baseline implementation on inputs the
+    contract already vouched for.
+    """
+
+    return [
+        {"id": f"oracle-{item['id']}", "input": item["input"]}
+        for item in _scaling_inputs(contract)
+    ]
+
+
+def _drop_oracle_cases(path: Path) -> bool:
+    """Remove the reference-oracle cases so bootstrap can fall back.
+
+    Returns True when the spec was changed.
+    """
+
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return False
+    if not isinstance(raw, dict) or "oracle_command" not in raw:
+        return False
+    raw.pop("oracle_command", None)
+    cases = raw.get("cases")
+    if isinstance(cases, list):
+        raw["cases"] = [
+            case
+            for case in cases
+            if not (isinstance(case, dict) and str(case.get("id", "")).startswith("oracle-"))
+        ]
+    try:
+        path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    except OSError:
+        return False
+    return True

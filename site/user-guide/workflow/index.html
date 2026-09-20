@@ -1585,6 +1585,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../changelog/v0.1.2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v0.1.2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../changelog/v0.1.1/" class="md-nav__link">
         
   
@@ -1949,6 +1977,15 @@
 <li>捕获 Baseline。</li>
 <li>尝试运行 Correctness 和 Baseline Benchmark。</li>
 </ol>
+<p>如果入口程序从 stdin 读入，模型在发现契约时会同时给出一族递增规模的输入，
+runtime 校验后写入 <code>.algocode/benchmarks/benchmark.yaml</code> 的 <code>inputs</code>（每个带 <code>id</code>、
+<code>size</code> 和 <code>input</code>）。不足两个合法规模时不会写入；如果多规模基准跑不通，
+bootstrap 会自动回退到单输入并重试，不会因此失败。</p>
+<p>如果 Baseline Benchmark 的单次运行过短（中位数低于 0.15 秒，说明测量被解释器启动开销
+主导），而契约里带了 <code>benchmarkHarness</code>（模型产出的、在同一进程内重复调用入口的
+脚本），runtime 会写入 <code>.algocode/benchmarks/harness.py</code>，用一次校准定下<strong>固定</strong>的
+重复轮数（目标约 0.5 秒），改写 <code>run_command</code> 后重测基线。轮数固定而非自适应，
+否则每次测量做的功不同，反而引入新的方差。没有 harness 时保持原样。</p>
 <p>输出包括：</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>.algocode/config.yaml
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>.algocode/contract.json
@@ -1967,6 +2004,14 @@
 <li>热点、复杂度来源和性能目标。</li>
 <li>优化候选方向。</li>
 </ul>
+<p>它还需要产出结构化的问题结构分析（<code>problemStructure</code>）和复杂度基线（<code>complexityBaseline</code>）：</p>
+<ul>
+<li>输入模型、数据分布、查询/更新比例、单调性与约束边界。</li>
+<li>操作的代数性质（可结合、可交换、幂等），这决定了能否分块、并行或预处理。</li>
+<li>当前实现复杂度、该问题的已知最优复杂度、两者差距及理由。</li>
+</ul>
+<p>并给出至少 3 个候选算法/数据结构（<code>algorithmCandidates</code>），每个带适用条件与预期收益。
+这些字段为空时，分析报告会被判为无效并重新生成。</p>
 <p>该阶段主要工具为 <code>list_files</code>、<code>read_file</code>、<code>read_required_files</code>、<code>search_code</code> 等。</p>
 <h2 id="3-baseline">3. Baseline：建立比较基准<a class="headerlink" href="#3-baseline" title="Permanent link">&para;</a></h2>
 <p>Baseline 是后续所有证据的参照点。它记录：</p>
@@ -1978,7 +2023,9 @@
 </ul>
 <p>Plan 和 Generate Candidate 都必须以 Baseline 为前提。若没有 Baseline，后续阶段会被 Gate 阻止。</p>
 <h2 id="4-plan">4. Plan：生成优化计划<a class="headerlink" href="#4-plan" title="Permanent link">&para;</a></h2>
-<p>Agent 根据 Analysis 和 Baseline 提交 <code>OptimizationPlan</code>，包括：</p>
+<p>Agent 先做只读侦察：用 <code>read_file</code>、<code>search_code</code>、<code>list_files</code> 查看 AnalysisReport
+中 profile 热点对应的真实源码，不修改任何文件。然后根据 Analysis 和 Baseline 提交
+<code>OptimizationPlan</code>，包括：</p>
 <ul>
 <li>优化策略。</li>
 <li>目标文件。</li>
@@ -1986,12 +2033,20 @@
 <li>验证方式。</li>
 <li>预期收益。</li>
 </ul>
+<p>计划必须从 <code>problemStructure</code> 和 <code>complexityBaseline</code> 出发，因此额外包含：</p>
+<ul>
+<li><code>algorithm</code>：拟采用的算法或数据结构。</li>
+<li><code>complexityBefore</code> / <code>complexityAfter</code>：改动前与改动后的复杂度。</li>
+<li><code>whyFaster</code>：为什么它优于当前选择。</li>
+<li><code>structureRef</code>：该判断依据的问题结构字段。</li>
+</ul>
 <p><code>algocode retry</code> 会在该阶段注入历史优化记录，避免重复已经失败的方向。</p>
 <h2 id="5-generate-candidate">5. Generate Candidate：创建隔离候选<a class="headerlink" href="#5-generate-candidate" title="Permanent link">&para;</a></h2>
 <p>CLI 会从 Baseline 创建独立 Git Worktree，Agent 不会直接修改用户工作区。</p>
 <p>VS Code 扩展则创建临时影子工作区。无论哪种入口，候选都是独立副本。</p>
 <h2 id="6-implement">6. Implement：实现优化<a class="headerlink" href="#6-implement" title="Permanent link">&para;</a></h2>
 <p>Agent 在候选工作区中修改代码。允许工具包括：</p>
+<p>每个阶段只向模型暴露阶段工具白名单中的工具，并注入剩余模型轮次、剩余工具调用数和候选自检要求。实现阶段可以直接使用 <code>list_files</code>、<code>search_code</code>、<code>read_file</code> 和编辑工具，但不会看到 Benchmark、Decision 等不属于该阶段的工具。</p>
 <ul>
 <li><code>apply_patch</code></li>
 <li><code>write_file</code></li>
@@ -2008,6 +2063,14 @@
 <li>Contract。</li>
 </ol>
 <p>只要有一项失败，候选就不会进入 Benchmark。</p>
+<p>Correctness 包含两类 case：</p>
+<ul>
+<li>契约基准输出（<code>primary-output</code>）：固定期望，来自初始化时的运行结果。</li>
+<li>参考实现交叉验证（<code>oracle-*</code>）：复用已校验的规模输入，现场跑
+  <code>.algocode/oracle/reference/</code> 下未被修改的入口副本得到期望输出。</li>
+</ul>
+<p>第二类让“换了算法”的候选必须在小规模输入上与原始实现逐字节一致，而不只是通过固定用例。
+参考实现副本位于保护目录内，候选无法修改；若副本无法运行，初始化会自动回退到只有契约 case 的规格。</p>
 <p>失败时常见路径：</p>
 <ul>
 <li>候选被标记为 <code>rejected</code>。</li>
@@ -2021,10 +2084,19 @@
 <li>交错运行 Baseline 与 Candidate。</li>
 <li>记录 Warmup、Repeats、Median、Mean、Stddev 和 Variation。</li>
 <li>使用 Environment Hash 和 Comparison Key 避免错误比较。</li>
+<li>优先按同一 input + repeat 配对计算提升、bootstrap 置信区间和置换检验。</li>
+<li>使用 MAD 鲁棒波动判定样本质量；原始波动超限但鲁棒波动正常时只记录 warning。</li>
 </ul>
+<p>如果 <code>benchmark.yaml</code> 的 <code>inputs</code> 为不同输入声明了 <code>size</code>，每个输入会单独统计，
+整体改善取各输入改善的中位数，波动取最差的单输入波动。</p>
 <p>该阶段要求至少一个完成的候选 Benchmark，且存在 Comparison Result，否则 Compare 阶段会被 Gate 阻止。</p>
 <h2 id="9-compare">9. Compare：性能比较<a class="headerlink" href="#9-compare" title="Permanent link">&para;</a></h2>
 <p>Compare 将 Baseline 与 Candidate 的 Median 和 Improvement 汇总为 Comparison Result。</p>
+<p>提升以配对相对改善的中位数表示；显著性使用配对置换检验，置信区间使用配对 bootstrap。
+这能避免单次系统调度尖峰把一个整体提升数十个百分点、p 值也很小的结果错误判为无效。</p>
+<p>当存在至少 3 个带 <code>size</code> 的输入时，还会对 <code>log(时间)</code> 与 <code>log(规模)</code> 做最小二乘
+拟合，得到 <code>growthBaseline</code>、<code>growthCandidate</code>、<code>growthDelta</code> 和 <code>growthPoints</code>。
+斜率下降意味着渐进复杂度下降——即使候选在最小输入上更慢，也能被识别为算法级改进。</p>
 <p>可通过以下命令查看：</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>algocode<span class="w"> </span>status
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>algocode<span class="w"> </span>review
@@ -2035,11 +2107,22 @@
 <ul>
 <li><code>requireCorrectness</code>。</li>
 <li><code>minMedianImprovementPercent</code>。</li>
+<li><code>minGrowthExponentReduction</code>（默认 0.5）与 <code>growthPointsRequired</code>（默认 3）：若斜率下降达到阈值，
+  可豁免常数提升阈值，但仍必须通过正确性与统计显著性检查。</li>
 <li>峰值内存回退上限。</li>
 <li>编译时间回退上限。</li>
 <li>样本波动上限。</li>
+<li>配对提升置信区间不得跨过 0。</li>
 </ul>
 <p>即使 Decide 阶段给出方向，最终仍需人工 Review 和 <code>accept</code>。</p>
+<p>决策不是 <code>accepted</code> 时，会再判断一次方向是否值得继续：</p>
+<ul>
+<li>如果这一轮有<strong>统计显著</strong>的改善（或拟合斜率下降），Algocode 在同一个候选上再跑一轮
+  Implement → Verify → Benchmark → Compare → Decide，最多 <code>maxRefinements</code> 轮（默认 2）。
+  每一轮仍然要完整通过正确性、参考实现交叉验证和基准有效性。</li>
+<li>如果没有可测量的改善（退步或只有噪声），则改为创建新候选继续搜索。</li>
+</ul>
+<p>也就是说：方向对了就继续挖，方向不对就换路。</p>
 <h2 id="11-reviewaccept-apply">11. Review、Accept 与 Apply<a class="headerlink" href="#11-reviewaccept-apply" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>algocode<span class="w"> </span>review
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>algocode<span class="w"> </span>diff

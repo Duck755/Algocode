@@ -11,6 +11,8 @@ algocode optimize
 
 然后查看证据和状态：
 
+`optimize` 默认可以尝试多个候选；如果某个方向已有显著正向前景但尚未满足接受条件，会自动细化同一候选。每个候选都必须重新通过 Correctness、Contract 和 Benchmark。
+
 ```bash
 algocode status
 algocode review

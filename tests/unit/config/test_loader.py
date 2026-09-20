@@ -21,7 +21,7 @@ class ConfigLoaderTests(unittest.TestCase):
         self.assertEqual(config.benchmark.repeats, 15)
         self.assertTrue(config.acceptance_policy.require_statistically_significant)
         self.assertEqual(config.acceptance_policy.min_median_improvement_percent, 2.0)
-        self.assertEqual(config.acceptance_policy.max_variation_percent, 5.0)
+        self.assertEqual(config.acceptance_policy.max_variation_percent, 15.0)
         self.assertEqual(config.models, {})
         self.assertEqual(config.defaults.provider, "default")
         self.assertEqual(config.defaults.model, "default")

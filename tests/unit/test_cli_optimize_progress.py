@@ -14,6 +14,7 @@ from algocode.cli.live_progress import (
     tick_line,
     tool_label,
     tool_status_label,
+    transition_line,
 )
 from algocode.domain.events import EventEnvelope, EventType
 
@@ -61,6 +62,23 @@ def _analysis_events() -> list[EventEnvelope]:
             tool_call_id="t2",
             name="search_code",
         ),
+    ]
+
+
+def _transition_events() -> list[EventEnvelope]:
+    return [
+        _event(30, EventType.TASK_PHASE_CHANGED, 100, current_phase="compare", status="running"),
+        _event(
+            31,
+            EventType.AGENT_PHASE_REENTERED,
+            101,
+            from_phase="compare",
+            to_phase="implement",
+            reason="candidate has valid positive evidence",
+            candidate_id="cand_1",
+            iteration=1,
+        ),
+        _event(32, EventType.TASK_PHASE_CHANGED, 102, current_phase="implement", status="running"),
     ]
 
 
@@ -206,6 +224,16 @@ class LineFormatTests(unittest.TestCase):
             "[algocode] 分析 | 1/10 | 完成 · 2 轮推理 · 2 次工具调用 | 4m04s \u2714",
         )
 
+    def test_transition_line_explains_a_back_jump(self) -> None:
+        transition = analyze_events(_transition_events()).transitions[0]
+
+        line = transition_line(transition, marker="!", title="algocode")
+
+        self.assertIn("阶段回退", line)
+        self.assertIn("对比 → 实现", line)
+        self.assertIn("candidate has valid positive evidence", line)
+        self.assertTrue(line.endswith("!"))
+
 
 class FitLineTests(unittest.TestCase):
     def test_short_lines_are_untouched(self) -> None:
@@ -279,6 +307,16 @@ class LiveProgressTests(unittest.TestCase):
 
         live.close(ok=True)
         self.assertTrue(stream.getvalue().endswith("\n"))
+
+    def test_phase_reentry_is_printed_before_the_second_implement(self) -> None:
+        stream = _Stream()
+        live = LiveProgress(load_events=_transition_events, stream=stream, color=False)
+
+        live.close(ok=True)
+
+        lines = stream.getvalue().splitlines()
+        self.assertTrue(any("阶段回退" in line for line in lines))
+        self.assertTrue(any("对比 → 实现" in line for line in lines))
 
     def test_ascii_fallback_replaces_the_check_marks(self) -> None:
         stream = io.StringIO()

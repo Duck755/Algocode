@@ -130,6 +130,19 @@ def _short(value: object) -> str:
     return text[:8] if len(text) > 8 else text
 
 
+def _median_note(summary: object, samples: int) -> str:
+    """Report the measured median next to the sample count.
+
+    The count alone hides whether the benchmark is even in a range worth
+    comparing, so show the number the comparison is actually built on.
+    """
+
+    median = getattr(summary, "median", None)
+    if median is None:
+        return f"{samples} samples"
+    return f"{format_duration(float(median))} · {samples} samples"
+
+
 def _evidence_rows(result: BootstrapResult, seed: int) -> list[tuple[str, str, str]]:
     rows: list[tuple[str, str, str]] = []
     contract_name = Path(result.contract_path).name if result.contract_path else "contract.json"
@@ -165,7 +178,7 @@ def _evidence_rows(result: BootstrapResult, seed: int) -> list[tuple[str, str, s
             (
                 "基准",
                 f"benchmark:{_short(result.benchmark_run.id)}",
-                f"valid · {samples} samples",
+                f"valid · {_median_note(summary, samples)}",
             )
         )
     else:

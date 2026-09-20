@@ -250,6 +250,7 @@ def _report_insights(
         p_value = comparison.get("p_value")
         baseline_median = _as_float(comparison.get("baseline_median"))
         candidate_median = _as_float(comparison.get("candidate_median"))
+        warnings = comparison.get("quality_warnings")
         statistical_evidence.append(
             {
                 "valid": bool(valid),
@@ -258,6 +259,11 @@ def _report_insights(
                 "candidateMedian": candidate_median,
                 "statisticallySignificant": significant,
                 "pValue": p_value,
+                "confidenceInterval": (
+                    comparison.get("ci_lower"),
+                    comparison.get("ci_upper"),
+                ),
+                "qualityWarnings": warnings,
             }
         )
         if improvement is not None:
@@ -272,6 +278,8 @@ def _report_insights(
             limitations.append("improvement is not statistically significant")
         elif p_value is None:
             limitations.append("no statistical significance evidence was produced")
+        if valid and isinstance(warnings, (list, tuple)):
+            limitations.extend(f"benchmark quality warning: {item}" for item in warnings)
     if not comparisons:
         limitations.append("no candidate benchmark comparison was produced")
     if not tradeoffs:

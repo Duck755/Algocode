@@ -37,9 +37,20 @@ flowchart TD
 - `languages/`：Python 和 C++ 适配。
 - `workspace/`：Git Worktree 和 Patch 管理。
 - `storage/`：事件、投影和产物持久化。
+- `profiling/`：Python/C++ 性能分析适配。
 - `security/`：凭证与脱敏。
 - `policy/`：策略决策。
 - `approval/`：人工审批。
+
+## 搜索与细化
+
+Runtime 在 Decide 之后会判断下一步：
+
+- 方向有显著正向证据但未满足接受条件：重新打开当前候选，执行同候选细化。
+- 没有可测收益或方向错误：保留候选记录，创建新候选并继续搜索。
+- 达到接受条件：结束搜索并进入报告流程。
+
+每个阶段只向模型暴露 `PHASE_TOOL_ALLOWLIST` 中的工具。阶段提示会注入剩余模型轮次、剩余工具调用数、候选自检计数和阶段回退原因。
 
 ## 双入口
 

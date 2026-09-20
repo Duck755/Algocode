@@ -53,6 +53,39 @@ class MultiCandidateSearchProvider:
                         "summary": "Project analyzed from two read passes.",
                         "language": "python",
                         "files": [{"path": "main.py", "role": "algorithm"}],
+                        "problemStructure": {
+                            "inputModel": "stdin",
+                            "dataDistribution": "uniform",
+                            "operationAlgebra": "associative",
+                            "queryUpdateMix": "read-only",
+                            "monotonicity": "none",
+                        },
+                        "complexityBaseline": {
+                            "current": "O(n^2)",
+                            "knownBest": "O(n log n)",
+                            "gap": "pairwise scan",
+                            "reasoning": "sorting removes the scan",
+                        },
+                        "algorithmCandidates": [
+                            {
+                                "name": "sort and scan",
+                                "paradigm": "sorting",
+                                "complexity": "O(n log n)",
+                                "applicability": "comparable keys",
+                            },
+                            {
+                                "name": "hash index",
+                                "paradigm": "hashing",
+                                "complexity": "O(n)",
+                                "applicability": "exact keys",
+                            },
+                            {
+                                "name": "two pointers",
+                                "paradigm": "greedy",
+                                "complexity": "O(n)",
+                                "applicability": "sorted input",
+                            },
+                        ],
                         "optimizationCandidates": [
                             {
                                 "id": "localize",
@@ -83,6 +116,11 @@ class MultiCandidateSearchProvider:
                         arguments={
                             "summary": "Explore print timing variants.",
                             "strategy": "Try small equivalent edits to main.py.",
+                            "algorithm": "sort and scan",
+                            "complexityBefore": "O(n^2)",
+                            "complexityAfter": "O(n log n)",
+                            "whyFaster": "removes the pairwise scan",
+                            "structureRef": "problemStructure.operationAlgebra",
                             "steps": [
                                 {
                                     "id": "edit-main",

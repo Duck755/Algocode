@@ -35,10 +35,14 @@ project:
 runtime:
   maxStepsPerPhase: 30
   maxToolCallsPerPhase: 50
+  maxCandidates: 3
+  maxRefinements: 2
 
 acceptancePolicy:
   requireCorrectness: true
-  minMedianImprovementPercent: 5.0
+  requireStatisticallySignificant: true
+  minMedianImprovementPercent: 2.0
+  maxVariationPercent: 15.0
 ```
 
 本地覆盖 `.algocode/config.local.yaml` 适合保存个人环境差异：

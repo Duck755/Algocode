@@ -20,6 +20,7 @@ class BenchmarkInputCase(BaseModel):
 
     id: str = Field(min_length=1)
     input: str = ""
+    size: int | None = Field(default=None, gt=0)
 
 
 class BenchmarkSpec(BaseModel):
@@ -78,7 +79,7 @@ def compute_benchmark_spec_hash(spec: BenchmarkSpec) -> str:
     payload = spec.model_dump(mode="json", exclude={"inputs"})
     if spec.inputs:
         payload["inputs"] = [
-            {"id": case.id, "input": case.input} for case in spec.inputs
+            {"id": case.id, "input": case.input, "size": case.size} for case in spec.inputs
         ]
     canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -107,7 +108,7 @@ def compute_input_hash(spec: BenchmarkSpec) -> str:
     }
     if spec.inputs:
         payload["input_cases"] = [
-            {"id": case.id, "input": case.input} for case in spec.inputs
+            {"id": case.id, "input": case.input, "size": case.size} for case in spec.inputs
         ]
     canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

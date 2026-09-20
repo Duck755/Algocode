@@ -39,7 +39,10 @@ async def read_file(context: ToolContext, arguments: dict[str, object]) -> ToolR
     relative_path = str(arguments.get("path", ""))
     target = _safe_path(context.workspace, relative_path)
     if not target.is_file():
-        return ToolResult(status="error", summary=f"file not found: {relative_path}")
+        return ToolResult(
+            status="error",
+            summary=_unreadable_path_message(context.workspace, relative_path, target),
+        )
     raw = target.read_bytes()
     truncated = len(raw) > MAX_READ_BYTES
     content = raw[:MAX_READ_BYTES].decode(errors="replace")
@@ -449,6 +452,40 @@ def _safe_path(workspace: Path, relative_path: str) -> Path:
     if not target.is_relative_to(root):
         raise ValueError("path escapes the workspace")
     return target
+
+
+def _directory_entries(directory: Path, limit: int = 25) -> str:
+    try:
+        names = sorted(
+            f"{entry.name}/" if entry.is_dir() else entry.name
+            for entry in directory.iterdir()
+            if entry.name not in IGNORED_DIRECTORIES
+        )
+    except OSError:
+        return "(unreadable)"
+    if not names:
+        return "(empty)"
+    extra = len(names) - limit
+    suffix = f" ... (+{extra} more)" if extra > 0 else ""
+    return ", ".join(names[:limit]) + suffix
+
+
+def _unreadable_path_message(workspace: Path, relative_path: str, target: Path) -> str:
+    """Explain an unreadable path so the next attempt can succeed."""
+
+    if target.is_dir():
+        return (
+            f"{relative_path} is a directory, not a file; use list_files to explore it. "
+            f"It contains: {_directory_entries(target)}"
+        )
+    parent = target.parent
+    if parent.is_dir():
+        shown = parent.relative_to(workspace.resolve()).as_posix() or "."
+        return (
+            f"file not found: {relative_path}; {shown} contains: "
+            f"{_directory_entries(parent)}"
+        )
+    return f"file not found: {relative_path}; use list_files to see which paths exist"
 
 
 def _positive_int(value: object, default: int) -> int:

@@ -45,6 +45,7 @@ def _run_payload(
             "mean": result.summary.mean,
             "stddev": result.summary.stddev,
             "variation_percent": result.summary.variation_percent,
+            "robust_variation_percent": result.summary.robust_variation_percent,
         }
     )
     return {
@@ -81,6 +82,11 @@ def _run_payload(
                 "improvement_percent": comparison.improvement_percent,
                 "valid": comparison.valid,
                 "reason": comparison.reason,
+                "p_value": comparison.p_value,
+                "ci_lower": comparison.ci_lower,
+                "ci_upper": comparison.ci_upper,
+                "pairing": comparison.pairing,
+                "quality_warnings": list(comparison.quality_warnings),
             }
         ),
     }

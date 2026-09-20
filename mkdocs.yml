@@ -87,5 +87,6 @@ nav:
       - 测试: development/testing.md
       - 发布: development/release.md
   - 更新日志:
+      - v0.1.2: changelog/v0.1.2.md
       - v0.1.1: changelog/v0.1.1.md
       - v0.1.0: changelog/v0.1.0.md

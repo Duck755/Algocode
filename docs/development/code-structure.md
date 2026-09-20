@@ -54,8 +54,10 @@ src/algocode/
 
 - `baseline_service`：捕获基线。
 - `candidate_service`：创建和冻结候选。
+- `candidate_service.reopen`：把 rejected/inconclusive 候选恢复到 editing，用于同候选细化。
 - `correctness_service`：运行 Correctness。
 - `benchmark_service`：运行 Benchmark 和读取比较结果。
+- `benchmark_service`：交错采样、多输入配对、鲁棒波动、置信区间和增长拟合。
 - `decision_service`：接受/拒绝候选。
 - `apply_service`：Apply 与 Rollback。
 - `report_service`：生成报告。

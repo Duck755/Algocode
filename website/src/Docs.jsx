@@ -70,6 +70,7 @@ const docsNav = [
   {
     title: '更新日志',
     items: [
+      { label: 'v0.1.2', path: 'changelog/v0.1.2' },
       { label: 'v0.1.1', path: 'changelog/v0.1.1' },
       { label: 'v0.1.0', path: 'changelog/v0.1.0' },
     ],

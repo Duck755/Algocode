@@ -13,6 +13,9 @@ stateDiagram-v2
     SELECTED --> APPLIED
     APPLIED --> ROLLED_BACK
     VERIFIED --> REJECTED
+    VERIFIED --> INCONCLUSIVE
+    REJECTED --> EDITING: reopen
+    INCONCLUSIVE --> EDITING: refine
     SELECTED --> STALE
 ```
 
@@ -27,5 +30,8 @@ stateDiagram-v2
 - `rolled_back`：已回滚。
 - `rejected`：验证失败或被拒绝。
 - `stale`：工作区变化后不再可安全应用。
+- `inconclusive`：证据噪声过大或置信区间跨过 0，暂时不能接受或拒绝。
+
+当候选方向有显著正向前景但还没有满足接受条件时，Runtime 可以重新打开候选，回到 `editing` 进行同候选细化。没有可测收益或方向错误时，则创建新候选继续搜索。
 
 其中 `verifying` 表示 Correctness/Contract 正在执行。CLI 与 VS Code 扩展都会复用相同状态模型；区别主要在候选的物理隔离位置和应用方式。

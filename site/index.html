@@ -1298,6 +1298,34 @@
   
   
     <li class="md-nav__item">
+      <a href="changelog/v0.1.2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v0.1.2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="changelog/v0.1.1/" class="md-nav__link">
         
   
@@ -1394,6 +1422,7 @@
 
 <h1 id="algocode">Algocode 文档<a class="headerlink" href="#algocode" title="Permanent link">&para;</a></h1>
 <p>Algocode 是一个面向 C++ / Python 的可验证算法优化 Agent。它会在隔离的 Git Worktree 中生成候选实现，并通过 Correctness、Contract 和 Benchmark 三类证据验证结果，只有用户显式执行 <code>accept</code> 和 <code>apply</code> 后才会修改原项目。</p>
+<p>从 <code>v0.1.2</code> 开始，Algocode 会进行多候选搜索；当一个方向有显著正向前景但尚未满足接受条件时，会细化同一候选。Benchmark 使用多规模输入、固定 harness、配对检验和鲁棒波动，以减少单次调度尖峰对决策的干扰。</p>
 <p>它同时提供 CLI 和 VS Code 扩展两个入口，适合终端自动化和编辑器内操作。</p>
 <p>本站按使用路径组织文档：</p>
 <ul>
@@ -1403,6 +1432,7 @@
 <li><a href="concepts/architecture/">核心概念</a>：理解 Algocode 的架构与验证体系。</li>
 <li><a href="reference/cli/">参考文档</a>：查询 CLI、配置、Schema 和项目目录。</li>
 <li><a href="development/code-structure/">开发与维护</a>：了解如何贡献代码、测试和发布。</li>
+<li><a href="changelog/v0.1.2/">v0.1.2 更新日志</a>：查看本版本新增与修复。</li>
 </ul>
 
 

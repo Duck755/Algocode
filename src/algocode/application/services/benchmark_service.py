@@ -27,6 +27,7 @@ from algocode.benchmark.types import (
     BenchmarkSummary,
     ComparisonResult,
     compare_sample_sets,
+    summarize_by_input,
     summarize_samples,
 )
 from algocode.domain.errors import BenchmarkError, CorrectnessError, NotFoundError
@@ -249,6 +250,20 @@ class BenchmarkService:
                     candidate_values=candidate_values,
                     direction=spec.direction,
                     max_variation_percent=spec.max_variation_percent,
+                    baseline_groups=summarize_by_input(
+                        baseline_samples,
+                        metric=spec.metric,
+                    ),
+                    candidate_groups=summarize_by_input(
+                        candidate_samples,
+                        metric=spec.metric,
+                    ),
+                    paired_groups=_paired_input_samples(
+                        baseline_samples,
+                        candidate_samples,
+                        metric=spec.metric,
+                    ),
+                    input_sizes=_input_sizes(spec),
                 )
         except Exception as exc:
             failed_seq = started_seq + 1
@@ -729,6 +744,36 @@ def _sample_payload(sample: BenchmarkSample) -> dict[str, object]:
     }
 
 
+def _paired_input_samples(
+    baseline_samples: tuple[BenchmarkSample, ...],
+    candidate_samples: tuple[BenchmarkSample, ...],
+    *,
+    metric: BenchmarkMetric,
+) -> dict[str, list[tuple[float, float]]]:
+    baseline_by_key = {
+        (sample.input_id, sample.index): sample.value
+        for sample in baseline_samples
+        if sample.phase == "measured" and sample.metric is metric and sample.valid
+    }
+    candidate_by_key = {
+        (sample.input_id, sample.index): sample.value
+        for sample in candidate_samples
+        if sample.phase == "measured" and sample.metric is metric and sample.valid
+    }
+    grouped: dict[str, list[tuple[float, float]]] = {}
+    for sample in baseline_samples:
+        if sample.phase != "measured" or sample.metric is not metric or not sample.valid:
+            continue
+        key = (sample.input_id, sample.index)
+        candidate_value = candidate_by_key.get(key)
+        baseline_value = baseline_by_key.get(key)
+        if candidate_value is not None and baseline_value is not None:
+            grouped.setdefault(sample.input_id, []).append(
+                (baseline_value, candidate_value)
+            )
+    return grouped
+
+
 def _summary_payload(summary: BenchmarkSummary | None) -> dict[str, float | int] | None:
     if summary is None:
         return None
@@ -740,6 +785,7 @@ def _summary_payload(summary: BenchmarkSummary | None) -> dict[str, float | int]
         "mean": summary.mean,
         "stddev": summary.stddev,
         "variation_percent": summary.variation_percent,
+        "robust_variation_percent": summary.robust_variation_percent,
         "ci_lower": summary.ci_lower,
         "ci_upper": summary.ci_upper,
         "sample_stddev": summary.sample_stddev,
@@ -759,6 +805,9 @@ def _summary_from_payload(payload: dict | None) -> BenchmarkSummary | None:
         mean=float(payload["mean"]),
         stddev=float(payload["stddev"]),
         variation_percent=float(payload["variation_percent"]),
+        robust_variation_percent=float(
+            payload.get("robust_variation_percent", payload.get("variation_percent", 0.0))
+        ),
         ci_lower=float(payload.get("ci_lower", 0.0)),
         ci_upper=float(payload.get("ci_upper", 0.0)),
         sample_stddev=float(payload.get("sample_stddev", 0.0)),
@@ -818,6 +867,7 @@ def _comparison_from_payload(
     candidate_run_id: str,
     candidate_id: str,
 ) -> ComparisonResult:
+    warnings = payload.get("quality_warnings")
     return ComparisonResult(
         baseline_run_id=payload["baseline_run_id"],
         candidate_run_id=candidate_run_id,
@@ -833,6 +883,13 @@ def _comparison_from_payload(
         ci_lower=float(payload.get("ci_lower", 0.0)),
         ci_upper=float(payload.get("ci_upper", 0.0)),
         statistically_significant=bool(payload.get("statistically_significant", False)),
+        direction=str(payload.get("direction", "minimize")),
+        pairing=str(payload.get("pairing", "independent")),
+        quality_warnings=(
+            tuple(str(item) for item in warnings)
+            if isinstance(warnings, list)
+            else ()
+        ),
     )
 
 
@@ -852,7 +909,30 @@ def _comparison_payload(comparison: ComparisonResult) -> dict[str, object]:
         "ci_lower": comparison.ci_lower,
         "ci_upper": comparison.ci_upper,
         "statistically_significant": comparison.statistically_significant,
+        "direction": comparison.direction,
+        "pairing": comparison.pairing,
+        "quality_warnings": list(comparison.quality_warnings),
+        "per_input": [
+            {
+                "input_id": point.input_id,
+                "size": point.size,
+                "baseline_median": point.baseline_median,
+                "candidate_median": point.candidate_median,
+                "improvement_percent": point.improvement_percent,
+            }
+            for point in comparison.per_input
+        ],
+        "growth_baseline": comparison.growth_baseline,
+        "growth_candidate": comparison.growth_candidate,
+        "growth_delta": comparison.growth_delta,
+        "growth_points": comparison.growth_points,
     }
+
+
+def _input_sizes(spec: BenchmarkSpec) -> dict[str, int]:
+    """Map benchmark input id to its declared size, when one is declared."""
+
+    return {case.id: case.size for case in spec.effective_inputs() if case.size is not None}
 
 
 def _serialize_result(

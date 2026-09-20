@@ -242,6 +242,39 @@ def _enqueue_python_agent_script(server: MockOpenAIServer) -> None:
                 "summary": "The Python entrypoint is analyzed.",
                 "language": "python",
                 "files": [{"path": "main.py", "role": "algorithm"}],
+                "problemStructure": {
+                    "inputModel": "stdin",
+                    "dataDistribution": "uniform",
+                    "operationAlgebra": "associative",
+                    "queryUpdateMix": "read-only",
+                    "monotonicity": "none",
+                },
+                "complexityBaseline": {
+                    "current": "O(n^2)",
+                    "knownBest": "O(n log n)",
+                    "gap": "pairwise scan",
+                    "reasoning": "sorting removes the scan",
+                },
+                "algorithmCandidates": [
+                    {
+                        "name": "sort and scan",
+                        "paradigm": "sorting",
+                        "complexity": "O(n log n)",
+                        "applicability": "comparable keys",
+                    },
+                    {
+                        "name": "hash index",
+                        "paradigm": "hashing",
+                        "complexity": "O(n)",
+                        "applicability": "exact keys",
+                    },
+                    {
+                        "name": "two pointers",
+                        "paradigm": "greedy",
+                        "complexity": "O(n)",
+                        "applicability": "sorted input",
+                    },
+                ],
                 "optimizationCandidates": [
                     {"id": "remove-sleep", "description": "Remove the sleep."}
                 ],
@@ -254,6 +287,11 @@ def _enqueue_python_agent_script(server: MockOpenAIServer) -> None:
         {
             "summary": "Remove the fixed delay.",
             "strategy": "Replace main.py with an immediate output.",
+            "algorithm": "single print",
+            "complexityBefore": "O(1) with a fixed delay",
+            "complexityAfter": "O(1) without the delay",
+            "whyFaster": "removes the artificial sleep",
+            "structureRef": "problemStructure.inputModel",
             "steps": [
                 {
                     "id": "remove-sleep",

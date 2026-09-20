@@ -139,6 +139,8 @@ optimize · completed · 耗时 4m04s
 └─────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+当 Benchmark 使用配对样本时，证据链和 JSON 还会包含配对置信区间、鲁棒波动和 `quality_warnings`。原始标准差波动超限但鲁棒波动正常时，不会直接把 comparison 判为无效。
+
 交互式终端下还会输出下一步菜单（查看候选改动 / 应用候选 / 生成任务报告 / 重新规划重试）。
 
 ### `algocode retry`
@@ -174,6 +176,8 @@ candidateId
 correctness.status
 benchmark.valid
 benchmark.improvementPercent
+benchmark.confidenceInterval
+benchmark.qualityWarnings
 decision.outcome
 nextCommand
 ```

@@ -745,7 +745,7 @@ function QuickStart() {
                 <span className="cmd">pip install algocode-agent</span>
               </div>
               <div className="terminal-line">
-                <span className="success">[OK] Successfully installed algocode-agent-0.1.1</span>
+                <span className="success">[OK] Successfully installed algocode-agent-0.1.2</span>
               </div>
               <div className="terminal-line-spacer" />
               <div className="terminal-line">

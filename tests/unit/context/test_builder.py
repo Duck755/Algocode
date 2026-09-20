@@ -72,7 +72,7 @@ class ContextBuilderTests(unittest.TestCase):
 
         self.assertEqual(user_messages[-1].content, "[current-request]\nPlan now")
         self.assertIn(
-            '"summary":"...","strategy":"...","steps":[{"id":"s1",',
+            '"algorithm":"...","complexityBefore":"...",',
             "\n".join(message.content for message in snapshot.to_messages()),
         )
 

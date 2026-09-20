@@ -109,6 +109,11 @@ class ToolRegistryTests(unittest.IsolatedAsyncioTestCase):
                 {
                     "summary": "Optimize",
                     "strategy": "Patch",
+                    "algorithm": "dijkstra",
+                    "complexityBefore": "O(n^3)",
+                    "complexityAfter": "O(n^2 log n)",
+                    "whyFaster": "reuse the previous shortest path tree",
+                    "structureRef": "problemStructure.operationAlgebra",
                     "steps": [{"id": "s1"}],
                 },
                 context,

@@ -1348,6 +1348,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../changelog/v0.1.2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v0.1.2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../changelog/v0.1.1/" class="md-nav__link">
         
   
@@ -1473,6 +1501,9 @@
     SELECTED --&gt; APPLIED
     APPLIED --&gt; ROLLED_BACK
     VERIFIED --&gt; REJECTED
+    VERIFIED --&gt; INCONCLUSIVE
+    REJECTED --&gt; EDITING: reopen
+    INCONCLUSIVE --&gt; EDITING: refine
     SELECTED --&gt; STALE</code></pre>
 <h2 id="_2">主要状态<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1485,7 +1516,9 @@
 <li><code>rolled_back</code>：已回滚。</li>
 <li><code>rejected</code>：验证失败或被拒绝。</li>
 <li><code>stale</code>：工作区变化后不再可安全应用。</li>
+<li><code>inconclusive</code>：证据噪声过大或置信区间跨过 0，暂时不能接受或拒绝。</li>
 </ul>
+<p>当候选方向有显著正向前景但还没有满足接受条件时，Runtime 可以重新打开候选，回到 <code>editing</code> 进行同候选细化。没有可测收益或方向错误时，则创建新候选继续搜索。</p>
 <p>其中 <code>verifying</code> 表示 Correctness/Contract 正在执行。CLI 与 VS Code 扩展都会复用相同状态模型；区别主要在候选的物理隔离位置和应用方式。</p>
 
 

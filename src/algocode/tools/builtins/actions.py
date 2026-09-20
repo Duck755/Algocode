@@ -276,11 +276,21 @@ async def run_benchmark(context: ToolContext, arguments: dict[str, object]) -> T
     )
     return ToolResult(
         status="success" if result.valid else "error",
-        summary=f"benchmark {'valid' if result.valid else 'invalid'}",
+        summary=(
+            "benchmark samples valid; comparison valid"
+            if result.valid and comparison.valid
+            else (
+                "benchmark samples valid; comparison invalid: "
+                f"{comparison.reason or 'quality threshold failed'}"
+                if result.valid
+                else "benchmark samples invalid"
+            )
+        ),
         structured={
             "run_id": run.id,
             "improvement_percent": comparison.improvement_percent,
             "comparison_valid": comparison.valid,
+            "comparison_reason": comparison.reason,
             "baseline_median": comparison.baseline_median,
             "candidate_median": comparison.candidate_median,
         },
@@ -642,12 +652,19 @@ def register_action_tools(registry) -> None:
         ToolDefinition(
             name="submit_optimization_plan",
             description=(
-                "Submit the final OptimizationPlan for the PLAN phase. Keep the plan compact: "
-                "at most 5 steps and do not copy long contract text."
+                "Submit the final OptimizationPlan for the PLAN phase. Name the algorithm or "
+                "data structure you will use, the complexity before and after, and why it beats "
+                "the current choice. Keep the plan compact: at most 5 steps and do not copy "
+                "long contract text."
             ),
             input_schema={
                 "summary": {"type": "string", "required": True},
                 "strategy": {"type": "string", "required": True},
+                "algorithm": {"type": "string", "required": True},
+                "complexityBefore": {"type": "string", "required": True},
+                "complexityAfter": {"type": "string", "required": True},
+                "whyFaster": {"type": "string", "required": True},
+                "structureRef": {"type": "string", "required": True},
                 "steps": {
                     "type": "array",
                     "required": True,

@@ -56,6 +56,18 @@ Improvement: 29.4573%
 
 ---
 
+## v0.1.2 新增能力
+
+- **多候选搜索**：默认最多创建 3 个候选，从不同算法方向搜索，而不是只尝试一次。
+- **同候选细化**：方向有显著收益但尚未满足接受条件时，重新打开同一候选继续实现，默认最多 2 轮。
+- **算法级分析**：Analyze 现在要求问题结构、复杂度基线和至少 3 个候选算法；Plan 必须说明算法、优化前后复杂度和 `whyFaster`。
+- **多规模 Benchmark**：stdin 程序会生成递增规模输入；短程序会使用固定轮数 harness，减少解释器启动开销对结果的影响。
+- **配对统计证据**：Baseline 与 Candidate 按 input 和 repeat 配对，使用配对置换检验、bootstrap 置信区间和 MAD 鲁棒波动。
+- **阶段工具隔离**：每个阶段只向模型暴露允许工具，并持续告知剩余轮次、剩余工具调用数和候选自检要求。
+- **阶段回退可解释**：细化候选或换新候选时，会输出明确的阶段回退原因。
+
+---
+
 ## 核心特性
 
 - **契约优先** — 优化前先确定公开 API、输入输出、配置字段、错误语义和边界行为，避免“变快了但语义坏了”。
@@ -238,7 +250,7 @@ algocode vscode install
 也可以使用 VSIX 手动安装：
 
 ```powershell
-code --install-extension "路径\algocode-vscode-0.1.1.vsix" --force
+code --install-extension "路径\algocode-vscode-0.1.2.vsix" --force
 ```
 
 或者：
@@ -450,9 +462,11 @@ src/algocode/
 ├── languages/            # Python / C++ 语言适配
 ├── correctness/          # Correctness 验证
 ├── benchmark/            # Benchmark 引擎
+├── profiling/            # 性能分析适配
 ├── workspace/            # Git Worktree、Apply、Rollback
 ├── storage/              # SQLite Event Store、Projection、Artifact
 └── resources/            # 资源与内置 VS Code 扩展
+```
 
 ### 项目内 .algocode
 
@@ -572,16 +586,18 @@ Python 包发布由 GitHub Actions 完成。
 发布流程：
 
 ```bash
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 工作流会构建并发布：
 
 ```text
-algocode_agent-0.1.1.tar.gz
-algocode_agent-0.1.1-py3-none-any.whl
+algocode_agent-0.1.2.tar.gz
+algocode_agent-0.1.2-py3-none-any.whl
 ```
+
+完整变更见 [`docs/changelog/v0.1.2.md`](docs/changelog/v0.1.2.md)。
 
 允许用户安装：
 

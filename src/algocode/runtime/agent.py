@@ -7,6 +7,7 @@ import hashlib
 import json
 import sys
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -78,6 +79,98 @@ PHASE_SEQUENCE: tuple[TaskPhase, ...] = (
 )
 
 
+PHASE_TOOL_ALLOWLIST: Mapping[TaskPhase, frozenset[str]] = {
+    TaskPhase.CREATE: frozenset({"get_task_state", "submit_phase_result"}),
+    TaskPhase.ANALYZE: frozenset(
+        {
+            "list_files",
+            "read_file",
+            "read_required_files",
+            "search_code",
+            "get_task_state",
+            "read_resource",
+        }
+    ),
+    TaskPhase.BASELINE: frozenset({"get_task_state", "submit_phase_result"}),
+    TaskPhase.PLAN: frozenset(
+        {
+            "submit_optimization_plan",
+            "read_file",
+            "search_code",
+            "list_files",
+            "get_task_state",
+        }
+    ),
+    TaskPhase.GENERATE_CANDIDATE: frozenset({"create_candidate", "get_task_state"}),
+    TaskPhase.IMPLEMENT: frozenset(
+        {
+            "read_file",
+            "list_files",
+            "search_code",
+            "apply_patch",
+            "write_file",
+            "edit_file",
+            "run_candidate_check",
+            "get_candidate_diff",
+            "get_task_state",
+            "submit_phase_result",
+        }
+    ),
+    TaskPhase.VERIFY: frozenset(
+        {
+            "build",
+            "run_correctness",
+            "run_contract",
+            "get_candidate_diff",
+            "get_task_state",
+            "read_file",
+            "list_files",
+            "search_code",
+        }
+    ),
+    TaskPhase.BENCHMARK: frozenset(
+        {
+            "run_benchmark",
+            "get_candidate_diff",
+            "get_task_state",
+            "read_file",
+            "list_files",
+            "search_code",
+        }
+    ),
+    TaskPhase.COMPARE: frozenset(
+        {
+            "read_file",
+            "list_files",
+            "search_code",
+            "get_task_state",
+            "submit_phase_result",
+        }
+    ),
+    TaskPhase.DECIDE: frozenset(
+        {
+            "read_file",
+            "list_files",
+            "search_code",
+            "get_task_state",
+            "submit_phase_result",
+        }
+    ),
+    TaskPhase.REPORT: frozenset(
+        {
+            "read_file",
+            "list_files",
+            "search_code",
+            "get_task_state",
+            "submit_phase_result",
+        }
+    ),
+}
+
+DEFAULT_PHASE_TOOLS = frozenset({"get_task_state"})
+MAX_MUTATIONS_BEFORE_CHECK = 4
+
+
 @dataclass(frozen=True, slots=True)
 class PhaseOutcome:
     status: str
@@ -133,6 +226,7 @@ class AgentRuntime:
         max_population: int = 6,
         max_evals: int = 50,
         max_iterations: int = 3,
+        max_refinements: int = 2,
         cost_budget_usd: float | None = None,
     ) -> None:
         self._event_store = event_store
@@ -159,6 +253,7 @@ class AgentRuntime:
         self._max_population = max_population
         self._max_evals = max_evals
         self._max_iterations = max_iterations
+        self._max_refinements = max_refinements
         self._cost_budget_usd = cost_budget_usd
         self._model_evals_used = 0
         self._estimated_cost_usd = 0.0
@@ -301,6 +396,7 @@ class AgentRuntime:
         base_workspace = workspace
         force_new_candidate = False
         candidate_iterations = 0
+        refinement_iterations = 0
         search_history: list[str] = []
         search_allowed = stop_after is TaskPhase.REPORT
 
@@ -376,6 +472,28 @@ class AgentRuntime:
                 )
                 if passed_correctness is not None:
                     correctness_result_id = passed_correctness.id
+            if phase is TaskPhase.IMPLEMENT and active_candidate_id is not None:
+                active_candidate = next(
+                    (
+                        candidate
+                        for candidate in candidates
+                        if str(candidate.id) == active_candidate_id
+                    ),
+                    None,
+                )
+                resume_block = _resume_block_reason(phase, active_candidate)
+                if resume_block is not None:
+                    await self._append_gate_denied(str(task.id), phase, resume_block)
+                    await self._append_phase(str(task.id), phase, TaskStatus.WAITING_USER)
+                    return AgentRunResult(
+                        task_id=str(task.id),
+                        status=TaskStatus.WAITING_USER.value,
+                        completed_phases=tuple(completed),
+                        turns=total_turns,
+                        tool_calls=total_tool_calls,
+                        summary=resume_block,
+                        outcomes=tuple(outcomes),
+                    )
             gate = self._phase_gate.evaluate(
                 task=task,
                 phase=phase,
@@ -422,15 +540,48 @@ class AgentRuntime:
                 completed.append(phase.value)
                 if phase is TaskPhase.GENERATE_CANDIDATE:
                     force_new_candidate = False
-                searching = (
+                refining = (
                     phase is TaskPhase.DECIDE
+                    and search_allowed
+                    and refinement_iterations < self._max_refinements
+                    and await self._should_refine(task, active_candidate_id)
+                )
+                if refining:
+                    refining = await self._reopen_for_refinement(active_candidate_id)
+                searching = (
+                    not refining
+                    and phase is TaskPhase.DECIDE
                     and search_allowed
                     and await self._should_continue_search(
                         task, candidates, active_candidate_id, candidate_iterations + 1
                     )
                 )
+                if refining:
+                    refinement_iterations += 1
+                    await self._append_phase_reentered(
+                        task_id=str(task.id),
+                        from_phase=phase,
+                        to_phase=TaskPhase.IMPLEMENT,
+                        reason=auto_outcome.summary,
+                        candidate_id=active_candidate_id,
+                        iteration=refinement_iterations + 1,
+                    )
+                    search_history.append(
+                        f"refine {refinement_iterations} on {active_candidate_id}: "
+                        f"{auto_outcome.summary}"
+                    )
+                    correctness_result_id = None
+                    phases[index + 1 : index + 1] = (
+                        TaskPhase.IMPLEMENT,
+                        TaskPhase.VERIFY,
+                        TaskPhase.BENCHMARK,
+                        TaskPhase.COMPARE,
+                        TaskPhase.DECIDE,
+                    )
+                    continue
                 if searching:
                     candidate_iterations += 1
+                    refinement_iterations = 0
                     search_history.append(
                         f"candidate {active_candidate_id}: {auto_outcome.summary}"
                     )
@@ -502,10 +653,44 @@ class AgentRuntime:
             completed.append(phase.value)
             if phase is TaskPhase.GENERATE_CANDIDATE:
                 force_new_candidate = False
-            if phase is TaskPhase.DECIDE and search_allowed and await self._should_continue_search(
-                task, candidates, active_candidate_id, candidate_iterations + 1
+            if (
+                phase is TaskPhase.DECIDE
+                and search_allowed
+                and refinement_iterations < self._max_refinements
+                and await self._should_refine(task, active_candidate_id)
+            ):
+                if not await self._reopen_for_refinement(active_candidate_id):
+                    continue
+                await self._append_phase_reentered(
+                    task_id=str(task.id),
+                    from_phase=phase,
+                    to_phase=TaskPhase.IMPLEMENT,
+                    reason=outcome.summary,
+                    candidate_id=active_candidate_id,
+                    iteration=refinement_iterations + 1,
+                )
+                refinement_iterations += 1
+                search_history.append(
+                    f"refine {refinement_iterations} on {active_candidate_id}: "
+                    f"{outcome.summary}"
+                )
+                correctness_result_id = None
+                phases[index + 1 : index + 1] = (
+                    TaskPhase.IMPLEMENT,
+                    TaskPhase.VERIFY,
+                    TaskPhase.BENCHMARK,
+                    TaskPhase.COMPARE,
+                    TaskPhase.DECIDE,
+                )
+            elif (
+                phase is TaskPhase.DECIDE
+                and search_allowed
+                and await self._should_continue_search(
+                    task, candidates, active_candidate_id, candidate_iterations + 1
+                )
             ):
                 candidate_iterations += 1
+                refinement_iterations = 0
                 search_history.append(f"candidate {active_candidate_id}: {outcome.summary}")
                 archive_context = await self._search_archive_context(str(task.id))
                 if archive_context:
@@ -670,6 +855,54 @@ class AgentRuntime:
         decision = await self._decision_service.get_for_candidate(candidate_id)
         return decision is not None and decision.outcome is not DecisionOutcome.ACCEPTED
 
+
+    async def _should_refine(self, task, candidate_id: str | None) -> bool:
+        """True when the last round moved forward but was not accepted yet.
+
+        Refining continues an existing direction, which is much cheaper than a
+        new candidate workspace. A round that regressed is not worth refining,
+        so it falls through to a fresh candidate instead.
+        """
+
+        if self._decision_service is None or candidate_id is None:
+            return False
+        if self._candidate_service is None:
+            return False
+        if self._model_evals_used >= self._max_evals:
+            return False
+        if (
+            self._cost_budget_usd is not None
+            and self._estimated_cost_usd >= self._cost_budget_usd
+        ):
+            return False
+        decision = await self._decision_service.get_for_candidate(candidate_id)
+        if decision is None or decision.outcome is not DecisionOutcome.REJECTED:
+            return False
+        benchmark_runs = await self._benchmark_service.list_for_task(task.id)
+        benchmark = next(
+            (
+                run
+                for run in benchmark_runs
+                if run.target_kind == "candidate" and run.target_id == candidate_id
+            ),
+            None,
+        )
+        if benchmark is None:
+            return False
+        comparison = await self._benchmark_service.read_comparison(benchmark)
+        if not comparison:
+            return False
+        return _refinement_worthy(comparison)
+
+    async def _reopen_for_refinement(self, candidate_id: str | None) -> bool:
+        if candidate_id is None or self._candidate_service is None:
+            return False
+        try:
+            await self._candidate_service.reopen(candidate_id)
+        except ValueError:
+            return False
+        return True
+
     async def _search_archive_context(self, task_id: str) -> str:
         if self._search_archive_service is None:
             return ""
@@ -711,6 +944,7 @@ class AgentRuntime:
         applied_patch_snapshot_hash: str | None = None
         candidate_check_snapshot_hash: str | None = None
         repair_context = ""
+        mutations_since_check = 0
         active_optimization_history = optimization_history
         repair_patch_required = False
         contract_passed = False
@@ -768,11 +1002,12 @@ class AgentRuntime:
                 )
             if phase is TaskPhase.PLAN:
                 summaries["current_request"] = (
-                    "Analysis is complete. Do not inspect files or task state. Submit one "
-                    "OptimizationPlan now with submit_optimization_plan. Use the AnalysisReport "
-                    "as the source of truth, including AnalysisReport.profile hotspots. "
-                    "Justify each step against a hotspot or verified evidence; report missing "
-                    "evidence as a risk or blocker instead of attempting more reads."
+                    "Analysis is complete. Verify AnalysisReport.problemStructure and "
+                    "complexityBaseline against the real code with read_file or search_code; "
+                    "this phase is read-only. Then submit one OptimizationPlan with "
+                    "submit_optimization_plan. Name the algorithm or data structure you will "
+                    "use, the complexity before and after, and why the current choice is not "
+                    "already optimal. Report missing evidence as a risk or blocker."
                 )
                 if active_optimization_history:
                     summaries["current_request"] += (
@@ -785,6 +1020,20 @@ class AgentRuntime:
             phase_tool_names = {
                 str(schema.get("name")) for schema in phase_tools if schema.get("name")
             }
+            summaries["current_request"] = _with_budget_instruction(
+                summaries.get("current_request", ""),
+                phase=phase,
+                current_turn=turns_used + 1,
+                max_turns=self._max_steps_per_phase,
+                tool_calls_used=tool_calls_used,
+                max_tool_calls=self._max_tool_calls_per_phase,
+                mutations_since_check=mutations_since_check,
+                candidate_check_required=(
+                    applied_patch_snapshot_hash is not None
+                    and candidate_check_snapshot_hash is None
+                    and layout.correctness_spec().is_file()
+                ),
+            )
             await self._update_context_facts(facts, task.id, phase, candidate_id)
             snapshot = self._context_builder.build(
                 task=task,
@@ -806,7 +1055,16 @@ class AgentRuntime:
             )
             await self._append_context(task_id, phase, snapshot)
             turns_used += 1
-            await self._append_turn_started(task_id, phase, turns_used)
+            await self._append_turn_started(
+                task_id,
+                phase,
+                turns_used,
+                remaining_turns=max(0, self._max_steps_per_phase - turns_used),
+                tool_calls_used=tool_calls_used,
+                remaining_tool_calls=max(
+                    0, self._max_tool_calls_per_phase - tool_calls_used
+                ),
+            )
             request = ModelRequest(
                 request_id=f"req_{uuid4().hex}",
                 model=self._model,
@@ -968,7 +1226,22 @@ class AgentRuntime:
                     protected_files=self._protected_files,
                 )
                 await self._append_tool_started(task_id, phase, call)
-                if repair_patch_required and call.name not in {
+                candidate_check_overdue = (
+                    phase is TaskPhase.IMPLEMENT
+                    and layout.correctness_spec().is_file()
+                    and candidate_check_snapshot_hash is None
+                    and mutations_since_check >= MAX_MUTATIONS_BEFORE_CHECK
+                )
+                if candidate_check_overdue and call.name != "run_candidate_check":
+                    result = ToolResult(
+                        status="error",
+                        summary=(
+                            "candidate check is overdue after repeated edits; "
+                            "call run_candidate_check now"
+                        ),
+                        structured={"candidate_check_overdue": True},
+                    )
+                elif repair_patch_required and call.name not in {
                     "apply_patch",
                     "write_file",
                     "edit_file",
@@ -1020,12 +1293,14 @@ class AgentRuntime:
                     if isinstance(result_id, str):
                         correctness_result_id = result_id
                 if call.name == "run_candidate_check" and result.status == "success":
+                    mutations_since_check = 0
                     snapshot_hash = result.structured.get("snapshot_hash")
                     if isinstance(snapshot_hash, str):
                         candidate_check_snapshot_hash = snapshot_hash
                     repair_context = ""
                     repair_patch_required = False
                 if call.name == "run_candidate_check" and result.status == "error":
+                    mutations_since_check = 0
                     repair_context = await self._record_candidate_check_failure(
                         task_id=task_id,
                         candidate_id=candidate_id,
@@ -1040,6 +1315,7 @@ class AgentRuntime:
                     call.name in {"apply_patch", "write_file", "edit_file"}
                     and result.status == "success"
                 ):
+                    mutations_since_check += 1
                     candidate_check_snapshot_hash = None
                     repair_patch_required = False
                     repair_context = ""
@@ -1532,9 +1808,18 @@ class AgentRuntime:
         for _ in range(3):
             task = await self._task_service.get_task(task_id)
             summaries = await self._context_summaries(task.id, None)
-            summaries["current_request"] = analysis_summary_prompt(
-                coverage,
-                previous_error=previous_error,
+            summaries["current_request"] = _with_budget_instruction(
+                analysis_summary_prompt(
+                    coverage,
+                    previous_error=previous_error,
+                ),
+                phase=phase,
+                current_turn=turns_used + 1,
+                max_turns=self._max_steps_per_phase,
+                tool_calls_used=tool_calls_used,
+                max_tool_calls=self._max_tool_calls_per_phase,
+                mutations_since_check=0,
+                candidate_check_required=False,
             )
             snapshot = self._context_builder.build(
                 task=task,
@@ -1548,7 +1833,16 @@ class AgentRuntime:
             )
             await self._append_context(task_id, phase, snapshot)
             turns_used += 1
-            await self._append_turn_started(task_id, phase, turns_used)
+            await self._append_turn_started(
+                task_id,
+                phase,
+                turns_used,
+                remaining_turns=max(0, self._max_steps_per_phase - turns_used),
+                tool_calls_used=tool_calls_used,
+                remaining_tool_calls=max(
+                    0, self._max_tool_calls_per_phase - tool_calls_used
+                ),
+            )
             request = ModelRequest(
                 request_id=f"req_{uuid4().hex}",
                 model=self._model,
@@ -1962,67 +2256,12 @@ class AgentRuntime:
         await store.record(task_id=str(task.id), payload=payload)
 
     def _tool_schemas_for_phase(self, phase: TaskPhase) -> tuple[dict[str, object], ...]:
-        schemas = self._tool_registry.provider_schemas()
-        allowed_by_phase = {
-            TaskPhase.ANALYZE: {
-                "list_files",
-                "read_file",
-                "read_required_files",
-                "search_code",
-                "get_task_state",
-                "read_resource",
-            },
-            TaskPhase.PLAN: {
-                "submit_optimization_plan",
-            },
-            TaskPhase.GENERATE_CANDIDATE: {
-                "create_candidate",
-                "get_task_state",
-            },
-            TaskPhase.IMPLEMENT: {
-                "apply_patch",
-                "write_file",
-                "edit_file",
-                "run_candidate_check",
-                "submit_phase_result",
-                "get_candidate_diff",
-                "get_task_state",
-                "read_file",
-            },
-            TaskPhase.VERIFY: {
-                "build",
-                "run_correctness",
-                "run_contract",
-                "get_candidate_diff",
-                "get_task_state",
-                "read_file",
-            },
-            TaskPhase.BENCHMARK: {
-                "run_benchmark",
-                "get_candidate_diff",
-                "get_task_state",
-                "read_file",
-            },
-            TaskPhase.COMPARE: {
-                "read_file",
-                "get_task_state",
-                "submit_phase_result",
-            },
-            TaskPhase.DECIDE: {
-                "read_file",
-                "get_task_state",
-                "submit_phase_result",
-            },
-            TaskPhase.REPORT: {
-                "read_file",
-                "get_task_state",
-                "submit_phase_result",
-            },
-        }
-        allowed = allowed_by_phase.get(phase)
-        if allowed is None:
-            return schemas
-        return tuple(schema for schema in schemas if schema.get("name") in allowed)
+        allowed = PHASE_TOOL_ALLOWLIST.get(phase, DEFAULT_PHASE_TOOLS)
+        return tuple(
+            schema
+            for schema in self._tool_registry.provider_schemas()
+            if schema.get("name") in allowed
+        )
 
     async def _append_analysis_completed(
         self,
@@ -2253,7 +2492,16 @@ class AgentRuntime:
             ),
         )
 
-    async def _append_turn_started(self, task_id: str, phase: TaskPhase, turn: int) -> None:
+    async def _append_turn_started(
+        self,
+        task_id: str,
+        phase: TaskPhase,
+        turn: int,
+        *,
+        remaining_turns: int | None = None,
+        tool_calls_used: int = 0,
+        remaining_tool_calls: int | None = None,
+    ) -> None:
         seq = await self._next_seq(task_id)
         await self._event_store.append(
             task_id,
@@ -2263,7 +2511,13 @@ class AgentRuntime:
                     task_id,
                     seq,
                     EventType.AGENT_TURN_STARTED,
-                    {"phase": phase.value, "turn": turn},
+                    {
+                        "phase": phase.value,
+                        "turn": turn,
+                        "remaining_turns": remaining_turns,
+                        "tool_calls_used": tool_calls_used,
+                        "remaining_tool_calls": remaining_tool_calls,
+                    },
                 ),
             ),
         )
@@ -2374,6 +2628,36 @@ class AgentRuntime:
             ),
         )
 
+    async def _append_phase_reentered(
+        self,
+        *,
+        task_id: str,
+        from_phase: TaskPhase,
+        to_phase: TaskPhase,
+        reason: str,
+        candidate_id: str | None,
+        iteration: int,
+    ) -> None:
+        seq = await self._next_seq(task_id)
+        await self._event_store.append(
+            task_id,
+            seq - 1,
+            (
+                _event(
+                    task_id,
+                    seq,
+                    EventType.AGENT_PHASE_REENTERED,
+                    {
+                        "from_phase": from_phase.value,
+                        "to_phase": to_phase.value,
+                        "reason": reason,
+                        "candidate_id": candidate_id,
+                        "iteration": iteration,
+                    },
+                ),
+            ),
+        )
+
     async def _next_seq(self, aggregate_id: str) -> int:
         events = await self._event_store.read(aggregate_id)
         return events[-1].seq + 1 if events else 1
@@ -2410,6 +2694,59 @@ def _phases_from(current: TaskPhase, stop_after: TaskPhase) -> tuple[TaskPhase, 
     return PHASE_SEQUENCE[start : end + 1]
 
 
+def _resume_block_reason(phase: TaskPhase, candidate) -> str | None:
+    if phase is not TaskPhase.IMPLEMENT or candidate is None:
+        return None
+    if candidate.status in {CandidateStatus.GENERATED, CandidateStatus.EDITING}:
+        return None
+    return (
+        f"candidate {candidate.id} is already {candidate.status.value}; "
+        "implement cannot resume after a decision. Rerun benchmark or use retry."
+    )
+
+
+def _with_budget_instruction(
+    request: str,
+    *,
+    phase: TaskPhase,
+    current_turn: int,
+    max_turns: int,
+    tool_calls_used: int,
+    max_tool_calls: int,
+    mutations_since_check: int,
+    candidate_check_required: bool,
+) -> str:
+    remaining_turns = max(0, max_turns - current_turn + 1)
+    remaining_tool_calls = max(0, max_tool_calls - tool_calls_used)
+    lines = [
+        "[phase budget]",
+        f"phase={phase.value}",
+        f"model_turn={current_turn}/{max_turns}",
+        f"remaining_model_turns_including_this_turn={remaining_turns}",
+        f"tool_calls={tool_calls_used}/{max_tool_calls}",
+        f"remaining_tool_calls={remaining_tool_calls}",
+    ]
+    if remaining_turns <= 5:
+        lines.append(
+            f"WARNING: only {remaining_turns} model turns remain in this phase."
+        )
+    if candidate_check_required:
+        lines.append(
+            f"candidate_mutations_since_last_check={mutations_since_check}"
+        )
+        if mutations_since_check >= MAX_MUTATIONS_BEFORE_CHECK:
+            lines.append(
+                "REQUIRED NEXT ACTION: call run_candidate_check now. Do not "
+                "inspect or edit further until the check runs."
+            )
+        elif remaining_turns <= 3:
+            lines.append(
+                "FINAL TURNS: call run_candidate_check, then submit_phase_result."
+            )
+    budget = "\n".join(lines)
+    return f"{budget}\n{request}".strip()
+
+
 def _event(
     aggregate_id: str,
     seq: int,
@@ -2444,3 +2781,23 @@ def _optional_float(value: object) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _refinement_worthy(comparison: Mapping[str, object]) -> bool:
+    """True when a valid rejected round still moved the candidate forward.
+
+    Invalid comparisons are evidence failures, not refinement signals.
+    A direction that measurably helped is worth another pass on the same
+    candidate; noise or a regression is not.
+    """
+
+    if comparison.get("valid") is not True:
+        return False
+    improvement = _optional_float(comparison.get("improvement_percent"))
+    if improvement is not None and improvement > 0:
+        if comparison.get("statistically_significant") is True:
+            return True
+    growth = comparison.get("growth_delta")
+    if isinstance(growth, bool):
+        return False
+    return isinstance(growth, int | float) and float(growth) > 0

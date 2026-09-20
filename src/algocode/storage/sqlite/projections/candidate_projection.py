@@ -67,6 +67,19 @@ class CandidateProjection:
                 ),
             )
             return
+        if event.type is EventType.CANDIDATE_REOPENED:
+            connection.execute(
+                """
+                UPDATE candidates
+                SET status = ?, frozen_at = NULL
+                WHERE id = ?
+                """,
+                (
+                    CandidateStatus.EDITING.value,
+                    event.payload["candidate_id"],
+                ),
+            )
+            return
         if (
             event.type is EventType.CORRECTNESS_PASSED
             and event.payload.get("target_kind") == "candidate"

@@ -2,7 +2,7 @@
   "name": "algocode-vscode",
   "displayName": "Algocode",
   "description": "VS Code integration for the Algocode algorithm optimization agent.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "acd2113",
   "engines": {
     "vscode": "^1.90.0"

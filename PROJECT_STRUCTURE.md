@@ -56,6 +56,7 @@ src/algocode/
 ├── domain/                        # 领域模型、事件和值对象
 ├── eval/                          # 评测套件
 ├── languages/                     # Python / C++ 语言适配
+├── profiling/                     # Python / C++ 性能分析适配
 ├── observability/                 # 可观察性扩展点
 ├── policy/                        # 策略引擎
 ├── ports/                         # 抽象接口定义
@@ -74,7 +75,7 @@ src/algocode/
 
 ```text
 src/algocode/
-├── __init__.py                    # __version__ = "0.1.1"
+├── __init__.py                    # __version__ = "0.1.2"
 ├── __main__.py                    # 调用 algocode.cli.main:main
 ├── bootstrap.py                   # 创建 AppContext，连接所有服务
 ├── project_layout.py              # config、oracle、benchmark、cache 路径
@@ -106,10 +107,13 @@ application/
     ├── contract_service.py        # Contract Discovery、编译、规范化和修复
     ├── correctness_service.py     # Correctness 运行、候选检查、证据保存
     ├── decision_service.py        # 根据验收策略生成 Accept/Reject 决策
+    ├── experiment_service.py      # Benchmark Experiment 生命周期
+    ├── maintenance_service.py     # 维护状态与清理
     ├── project_bootstrap_service.py # init 全流程：契约、基线、初始化
     ├── project_service.py         # 项目注册与查询
     ├── project_state.py           # .algocode/current-task.json 读写
     ├── report_service.py          # report.md 与内部报告产物
+    ├── search_archive_service.py  # 多候选搜索归档与上下文
     └── task_service.py            # Task 创建、查询、状态变化
 ```
 
@@ -286,7 +290,7 @@ resources/
 ├── types.py                       # ResourceResult
 └── vscode/
     ├── __init__.py
-    └── algocode-vscode-0.1.1.vsix # PyPI 包内携带的 VS Code 扩展
+    └── algocode-vscode-0.1.2.vsix # PyPI 包内携带的 VS Code 扩展
 ```
 
 ### `runtime/`
@@ -495,7 +499,7 @@ extensions/vscode/
 ├── out/
 │   ├── extension.js               # TypeScript 编译产物
 │   └── extension.js.map           # Source Map
-├── algocode-vscode-0.1.1.vsix     # 可安装扩展包
+├── algocode-vscode-0.1.2.vsix     # 可安装扩展包
 ├── package.json                   # 命令、菜单、配置贡献
 ├── package-lock.json              # npm 锁文件
 └── tsconfig.json                  # TypeScript 配置

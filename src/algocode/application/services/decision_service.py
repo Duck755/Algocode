@@ -101,7 +101,8 @@ class DecisionService:
         benchmark_result = await self._benchmark_service.read_result(benchmark)
         comparison = await self._benchmark_service.read_comparison(benchmark)
         if comparison is None or comparison.get("valid") is not True:
-            raise DecisionError("candidate benchmark comparison is invalid")
+            reason = comparison.get("reason") if comparison is not None else None
+            raise DecisionError(str(reason or "candidate benchmark comparison is invalid"))
         self._validate_acceptance_thresholds(benchmark_result, comparison)
         evidence.extend((benchmark.result_ref, benchmark.comparison_ref))
 
@@ -200,7 +201,11 @@ class DecisionService:
                 task.id,
                 candidate.id,
                 DecisionOutcome.INCONCLUSIVE,
-                reason="candidate benchmark comparison is invalid",
+                reason=(
+                    str(comparison.get("reason"))
+                    if comparison is not None and comparison.get("reason")
+                    else "candidate benchmark comparison is invalid"
+                ),
                 evidence_refs=(
                     benchmark.result_ref,
                     benchmark.comparison_ref,
@@ -217,6 +222,7 @@ class DecisionService:
                 comparison.get("statistically_significant") is False
                 or "variation exceeds" in joined
                 or "no statistical significance evidence" in joined
+                or "confidence interval crosses zero" in joined
             ):
                 outcome = DecisionOutcome.INCONCLUSIVE
             else:
@@ -233,11 +239,15 @@ class DecisionService:
                 ),
             )
 
+        reason = "correctness and benchmark evidence passed acceptance policy"
+        warnings = comparison.get("quality_warnings")
+        if isinstance(warnings, (list, tuple)) and warnings:
+            reason += "; quality warning: " + "; ".join(str(item) for item in warnings)
         return await self.record_outcome(
             task.id,
             candidate.id,
             DecisionOutcome.ACCEPTED,
-            reason="correctness and benchmark evidence passed acceptance policy",
+            reason=reason,
             evidence_refs=(
                 correctness.result_ref,
                 benchmark.result_ref,
@@ -334,7 +344,11 @@ class DecisionService:
     ) -> list[str]:
         issues: list[str] = []
         improvement = float(comparison.get("improvement_percent", 0.0))
-        if improvement < self._acceptance_policy.min_median_improvement_percent:
+        algorithmic_gain = _algorithmic_gain(comparison, self._acceptance_policy)
+        if (
+            improvement < self._acceptance_policy.min_median_improvement_percent
+            and not algorithmic_gain
+        ):
             issues.append(
                 f"candidate improvement is below the acceptance threshold: {improvement:.6f}%"
             )
@@ -343,7 +357,12 @@ class DecisionService:
             for key in ("baseline_summary", "candidate_summary"):
                 summary = benchmark_result.get(key)
                 if isinstance(summary, dict):
-                    variation = float(summary.get("variation_percent", 0.0))
+                    variation = float(
+                        summary.get(
+                            "robust_variation_percent",
+                            summary.get("variation_percent", 0.0),
+                        )
+                    )
                     if variation > max_variation:
                         issues.append(
                             f"{key} variation exceeds acceptance threshold: {variation:.6f}%"
@@ -359,6 +378,12 @@ class DecisionService:
             if statistically_significant is None and "p_value" in comparison:
                 issues.append(
                     "candidate comparison has no statistical significance evidence"
+                )
+            if statistically_significant is True and not _confidence_interval_supports_gain(
+                comparison
+            ):
+                issues.append(
+                    "candidate improvement confidence interval crosses zero"
                 )
         for metric, threshold in (
             ("peak_memory", self._acceptance_policy.max_peak_memory_regression_percent),
@@ -387,6 +412,47 @@ class DecisionService:
     async def _next_seq(self, aggregate_id: str) -> int:
         events = await self._event_store.read(aggregate_id)
         return events[-1].seq + 1 if events else 1
+
+
+def _algorithmic_gain(
+    comparison: dict[str, object],
+    policy: AcceptancePolicyConfig,
+) -> bool:
+    """True when the fitted growth exponent dropped enough to count.
+
+    A rewrite that is slower on the smallest input but visibly flatter across
+    sizes is exactly the case this exists for.
+    """
+
+    required_points = policy.growth_points_required
+    required_drop = policy.min_growth_exponent_reduction
+    if required_points <= 0 or required_drop <= 0:
+        return False
+    delta = comparison.get("growth_delta")
+    points = comparison.get("growth_points")
+    if isinstance(delta, bool) or isinstance(points, bool):
+        return False
+    if not isinstance(delta, int | float) or not isinstance(points, int | float):
+        return False
+    return int(points) >= required_points and float(delta) >= required_drop
+
+
+def _confidence_interval_supports_gain(comparison: dict[str, object]) -> bool:
+    """Return True when the paired improvement CI excludes zero.
+
+    Missing CI evidence is treated as unavailable rather than invalid so older
+    cached comparisons remain readable.
+    """
+
+    lower = comparison.get("ci_lower")
+    upper = comparison.get("ci_upper")
+    if isinstance(lower, bool) or isinstance(upper, bool):
+        return True
+    if not isinstance(lower, int | float) or not isinstance(upper, int | float):
+        return True
+    if comparison.get("pairing") != "paired":
+        return True
+    return float(lower) > 0.0 and float(upper) > 0.0
 
 
 def _metric_regression_percent(

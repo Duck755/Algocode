@@ -8,7 +8,7 @@
 src/algocode/__init__.py
 ```
 
-Python 包和 VS Code 扩展应保持相同版本，例如当前版本为 `0.1.1`。
+Python 包和 VS Code 扩展应保持相同版本，例如当前版本为 `0.1.2`。
 
 ## 发布前检查
 
@@ -56,8 +56,8 @@ algocode doctor
 GitHub Actions 会在推送版本 Tag 后构建并发布：
 
 ```bash
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 发布后用户可安装：

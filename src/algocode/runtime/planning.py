@@ -60,6 +60,11 @@ class OptimizationPlan(BaseModel):
     schema_version: int = Field(default=1, ge=1)
     summary: str
     strategy: str
+    algorithm: str
+    complexity_before: str
+    complexity_after: str
+    why_faster: str
+    structure_ref: str
     rationale: str = ""
     steps: tuple[PlanStep, ...] = Field(min_length=1)
     constraints: tuple[str, ...] = ()

@@ -48,6 +48,8 @@ algocode retry
 | `algocode optimize` | 从当前阶段继续运行完整阶段机。 | 初始化完成后开始优化，或继续未完成任务。 |
 | `algocode retry` | 基于历史优化记录，从 `PLAN` 阶段重新规划。 | 上一次优化失败、收益不足或方向不理想。 |
 
+`optimize` 在默认配置下可以创建多个候选，并对有显著正向前景但尚未被接受的候选继续细化。每个阶段只暴露允许工具，模型会收到剩余轮次和工具调用预算。
+
 `optimize` 支持 `--fake-provider` 做无 Key 联调，也支持 `--stop-after verify` 分阶段调试。
 
 ## 查看状态与证据

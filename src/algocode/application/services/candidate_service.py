@@ -11,7 +11,14 @@ from algocode.application.services.project_service import ProjectService
 from algocode.application.services.task_service import TaskService
 from algocode.domain.errors import NotFoundError
 from algocode.domain.events import EventEnvelope, EventType
-from algocode.domain.model import Candidate, CandidateId, GitRevision, TaskId, new_candidate_id
+from algocode.domain.model import (
+    Candidate,
+    CandidateId,
+    CandidateStatus,
+    GitRevision,
+    TaskId,
+    new_candidate_id,
+)
 from algocode.ports import EventStore
 from algocode.storage.sqlite.database import Database
 from algocode.storage.sqlite.projections.candidate_projection import CandidateProjection
@@ -123,6 +130,34 @@ class CandidateService:
                     seq,
                     EventType.CANDIDATE_FROZEN,
                     {"candidate_id": str(candidate.id), "patch_hash": patch_hash},
+                ),
+            ),
+        )
+        return await self.get(candidate.id)
+
+    async def reopen(self, candidate_id: CandidateId | str) -> Candidate:
+        """Return a previously decided candidate to the editable lifecycle state."""
+
+        candidate = await self.get(candidate_id)
+        if candidate.status in {CandidateStatus.GENERATED, CandidateStatus.EDITING}:
+            return candidate
+        if candidate.status not in {
+            CandidateStatus.REJECTED,
+            CandidateStatus.INCONCLUSIVE,
+        }:
+            raise ValueError(
+                f"candidate status {candidate.status.value} cannot be reopened"
+            )
+        seq = await self._next_seq(str(candidate.task_id))
+        await self._event_store.append(
+            str(candidate.task_id),
+            seq - 1,
+            (
+                _event(
+                    str(candidate.task_id),
+                    seq,
+                    EventType.CANDIDATE_REOPENED,
+                    {"candidate_id": str(candidate.id), "status": CandidateStatus.EDITING.value},
                 ),
             ),
         )
