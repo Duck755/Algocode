@@ -1,0 +1,100 @@
+{
+  "status": "complete",
+  "llm": {
+    "provider": "deepseek",
+    "model": "deepseek-flash"
+  },
+  "message": "Review complete: 0 finding(s) across 3 selected item(s).",
+  "summary": {
+    "files_reviewed": 3,
+    "comments": 0,
+    "total_tokens": 9748,
+    "input_tokens": 8948,
+    "output_tokens": 800,
+    "cache_read_tokens": 6912,
+    "elapsed": "5s"
+  },
+  "tool_calls": {
+    "total": 2,
+    "by_tool": {
+      "code_search": 2
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [],
+  "groups": [
+    {
+      "label": "small change set",
+      "files": [
+        "mkdocs.yml",
+        "pyproject.toml",
+        "website/src/App.jsx"
+      ]
+    }
+  ],
+  "session_id": "28d915e7-8475-43dc-9808-69c70e4cd810",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "28d915e7-8475-43dc-9808-69c70e4cd810",
+    "operation": "review",
+    "terminal_state": "complete",
+    "repository": {
+      "identity_sha256": "dd98ef0ac98b719cd43454cab719dd147045b573f8cd13a2c5559f0a7755f12e"
+    },
+    "input": {
+      "mode": "workspace",
+      "resolved_base": "8b6054ce1be23674d7184469842548ed963e53a7",
+      "source_artifact_sha256": "e71f8bc425e7c6b1cd57e36006ec2d63cc223a1efaa28f82ef76d5be50f4adee"
+    },
+    "execution": {
+      "ocr_version": "v1.12.7",
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "configured_concurrency": 8,
+      "rule_config_sha256": "ddb40005eb732cb8b37d8d3dc1acb82f3aa51fded408c899a092c10349c369c4",
+      "runtime_config_sha256": "5ebcfe48b12eb630044e21e03a257346b5e290bbb9f751fe92aca7953e97ed4c"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "100ec26861d61aa5db5c7a5d9d5f3543cbeb964eb0b04942481a0ce1e3953770",
+          "path": "pyproject.toml",
+          "fingerprint": "4972aa55f12950d894a5647fe263a787d9cc8afbde9d45330192b73fe8cecc69"
+        },
+        {
+          "item_id": "b46f2461eb0047b2ba0d21672fd0f0cac8a29c2bd855d6ac4be6e86fb090a524",
+          "path": "website/src/App.jsx",
+          "fingerprint": "46b47745acc36d99b776f6006ec52f92d2043a18b1c83d553032e815f730c949"
+        },
+        {
+          "item_id": "b552bc51a3253f936b8ae316c7f18fddbc4b2e3b2f10f9679987172bbd9f9f0c",
+          "path": "mkdocs.yml",
+          "fingerprint": "80e355412312892d9ec3299c29498abc22530f2102046feec5f31d0e9b66c982"
+        }
+      ],
+      "completed": [
+        {
+          "item_id": "100ec26861d61aa5db5c7a5d9d5f3543cbeb964eb0b04942481a0ce1e3953770",
+          "path": "pyproject.toml",
+          "fingerprint": "4972aa55f12950d894a5647fe263a787d9cc8afbde9d45330192b73fe8cecc69"
+        },
+        {
+          "item_id": "b46f2461eb0047b2ba0d21672fd0f0cac8a29c2bd855d6ac4be6e86fb090a524",
+          "path": "website/src/App.jsx",
+          "fingerprint": "46b47745acc36d99b776f6006ec52f92d2043a18b1c83d553032e815f730c949"
+        },
+        {
+          "item_id": "b552bc51a3253f936b8ae316c7f18fddbc4b2e3b2f10f9679987172bbd9f9f0c",
+          "path": "mkdocs.yml",
+          "fingerprint": "80e355412312892d9ec3299c29498abc22530f2102046feec5f31d0e9b66c982"
+        }
+      ],
+      "reused": [],
+      "failed": [],
+      "waived": []
+    },
+    "elapsed_ms": 4933
+  }
+}

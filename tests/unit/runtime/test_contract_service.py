@@ -126,6 +126,43 @@ class BenchmarkHarnessValidationTests(unittest.TestCase):
 
         self.assertIsNone(issue)
 
+    def test_constant_call_in_for_iterable_is_accepted(self) -> None:
+        issue = benchmark_harness_issue(
+            "for path in sorted(root.glob('*.py')):\n"
+            "    if path.name == 'test.py':\n"
+            "        continue\n"
+            "    path.read_text()\n"
+        )
+
+        self.assertIsNone(issue)
+
+    def test_nested_for_iterable_is_not_attributed_to_outer_loop(self) -> None:
+        issue = benchmark_harness_issue(
+            "for seed in seeds:\n"
+            "    for path in root.glob('*.py'):\n"
+            "        mod.run(seed, path)\n"
+        )
+
+        self.assertIsNone(issue)
+
+    def test_constant_call_in_while_loop_is_rejected(self) -> None:
+        issue = benchmark_harness_issue(
+            "while mod.should_continue(42):\n"
+            "    mod.run_workload(seed=42)\n"
+        )
+
+        self.assertIsNotNone(issue)
+        self.assertIn("constant arguments", issue or "")
+
+    def test_stateful_random_calls_with_constant_bounds_are_accepted(self) -> None:
+        issue = benchmark_harness_issue(
+            "for _ in range(rounds):\n"
+            "    value = op_rng.randrange(-100, 101)\n"
+            "    mod.run(value)\n"
+        )
+
+        self.assertIsNone(issue)
+
 
 if __name__ == "__main__":
     unittest.main()

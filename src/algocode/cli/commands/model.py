@@ -41,9 +41,7 @@ def _merge_model_choices(
         configured_entries.append((model_key, model_id))
 
     ordered_ids = list(
-        dict.fromkeys(
-            [*upstream_models, *(model_id for _, model_id in configured_entries)]
-        )
+        dict.fromkeys([*upstream_models, *(model_id for _, model_id in configured_entries)])
     )
     default_entry = models.get(default_model_key)
     if getattr(default_entry, "provider", None) == provider_key:
@@ -100,7 +98,7 @@ def model_command(
 
     upstream_models, upstream_note = _fetch_upstream_models(provider, selected_provider)
     if upstream_note:
-        typer.echo(f"未能从上游获取模型列表：{upstream_note}", err=True)
+        typer.echo(f"Failed to fetch the upstream model list: {upstream_note}", err=True)
     choices = _merge_model_choices(
         config.models,
         selected_provider,
@@ -108,30 +106,29 @@ def model_command(
         config.defaults.model,
     )
 
-    typer.echo(f"当前 Provider: {selected_provider}")
-    typer.echo("请选择模型：")
+    typer.echo(f"Current provider: {selected_provider}")
+    typer.echo("Choose a model:")
     for index, choice in enumerate(choices, start=1):
-        default_marker = " (当前默认)" if choice.model_key == config.defaults.model else ""
-        source_marker = "" if choice.configured else " (上游)"
+        default_marker = " (current default)" if choice.model_key == config.defaults.model else ""
+        source_marker = "" if choice.configured else " (upstream)"
         typer.echo(
-            f"  {index}. {choice.model_id} [{choice.model_key}]"
-            f"{source_marker}{default_marker}"
+            f"  {index}. {choice.model_id} [{choice.model_key}]{source_marker}{default_marker}"
         )
-    typer.echo("  0. 输入其他模型 ID")
+    typer.echo("  0. Enter another model ID")
 
     while True:
-        selected = typer.prompt("请输入数字", type=int)
+        selected = typer.prompt("Enter a number", type=int)
         if 0 <= selected <= len(choices):
             break
-        typer.echo(f"请输入 0 到 {len(choices)} 之间的数字。", err=True)
+        typer.echo(f"Enter a number between 0 and {len(choices)}.", err=True)
 
     if selected == 0:
-        model_id = typer.prompt("模型 ID").strip()
+        model_id = typer.prompt("Model ID").strip()
         if not model_id:
-            typer.echo("模型 ID 不能为空", err=True)
+            typer.echo("Model ID must not be empty", err=True)
             raise typer.Exit(code=2)
         model_key = f"{selected_provider}/{model_id}"
-        context_window = typer.prompt("上下文窗口", default=128_000, type=int)
+        context_window = typer.prompt("Context window", default=128_000, type=int)
         patch = {
             "models": {
                 model_key: {
@@ -181,7 +178,7 @@ def model_command(
         quiet=quiet,
         verbose=verbose,
         human_lines=(
-            f"默认模型已切换为: {model_key}",
+            f"Default model switched to: {model_key}",
             f"Config: {config_path}",
         ),
     )

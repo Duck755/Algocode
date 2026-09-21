@@ -143,11 +143,11 @@ class ProjectBootstrapService:
         git_initialized = False
         try:
             repository = await GitRepository.discover(root)
-            emit("detail", "scan", "Git 仓库已就绪")
+            emit("detail", "scan", "Git repository is ready")
         except GitError:
             repository = await GitRepository.initialize(root)
             git_initialized = True
-            emit("detail", "scan", "已执行 git init")
+            emit("detail", "scan", "git init completed")
 
         detected = await self._context.language_registry.detect(root)
         selected_language = self._context.language_registry.resolve_language(
@@ -155,12 +155,12 @@ class ProjectBootstrapService:
             detected,
         )
         entrypoint = self._entrypoint_name(root, selected_language)
-        emit("detail", "scan", f"检测语言：{selected_language.value}")
+        emit("detail", "scan", f"Detected language: {selected_language.value}")
         self._write_project_config(root, selected_language)
         self._write_state_gitignore(layout)
         emit("finish", "scan", selected_language.value)
 
-        emit("start", "contract", "生成行为契约（可能需要数分钟）")
+        emit("start", "contract", "Generating behavioral contract (this may take several minutes)")
         discovery = ContractDiscoveryService(self._context)
         compiler = ContractCompiler(self._context)
         contract = await discovery.discover(
@@ -171,11 +171,13 @@ class ProjectBootstrapService:
         contract_failure: str | None = None
         previous_source: str | None = None
         for attempt in range(3):
-            emit("detail", "contract", f"编译契约并运行契约测试（第 {attempt + 1}/3 次）")
-            compiled_objective = compiler.compile(root, contract, language=selected_language.value)
-            contract_failure = await self._run_contract_test(
-                root, language=selected_language.value
+            emit(
+                "detail",
+                "contract",
+                f"Compiling contract and running contract test (attempt {attempt + 1}/3)",
             )
+            compiled_objective = compiler.compile(root, contract, language=selected_language.value)
+            contract_failure = await self._run_contract_test(root, language=selected_language.value)
             if contract_failure is None:
                 break
             if not contract.contract_test_source or attempt == 2:
@@ -186,7 +188,7 @@ class ProjectBootstrapService:
                     "\n\nThe previous repair returned exactly the same source. "
                     "Replace the incorrect expected-state logic instead of returning it again."
                 )
-            emit("detail", "contract", f"修复契约测试（第 {attempt + 1}/3 次）")
+            emit("detail", "contract", f"Repairing contract test (attempt {attempt + 1}/3)")
             repaired = await discovery.repair_contract_test(
                 contract,
                 root=root,
@@ -196,7 +198,7 @@ class ProjectBootstrapService:
             previous_source = contract.contract_test_source
             contract = repaired
         if contract_failure is not None:
-            emit("detail", "contract", "回退到参考一致性契约测试")
+            emit("detail", "contract", "Falling back to the reference conformance contract test")
             fallback_source = (
                 _reference_conformance_test_source_cpp(root)
                 if selected_language is Language.CPP
@@ -204,16 +206,15 @@ class ProjectBootstrapService:
             )
             contract = contract.model_copy(update={"contract_test_source": fallback_source})
             compiled_objective = compiler.compile(root, contract, language=selected_language.value)
-            contract_failure = await self._run_contract_test(
-                root, language=selected_language.value
-            )
+            contract_failure = await self._run_contract_test(root, language=selected_language.value)
         if contract_failure is not None and contract.contract_test_source:
             raise RuntimeError(f"generated contract test failed: {contract_failure}")
         if contract.contract_source == "deterministic-fallback":
             emit(
                 "note",
                 "contract",
-                "未配置可用模型，已使用确定性回退契约；运行 algocode api 可提升契约质量",
+                "No model is configured; using the deterministic fallback contract. "
+                "Run algocode api to improve contract quality.",
             )
         emit("finish", "contract", f"confidence {contract.confidence:.2f}")
         effective_objective = (
@@ -231,8 +232,12 @@ class ProjectBootstrapService:
             generated = await self._bootstrap_cpp(root)
             bootstrap_status = "completed"
         else:
-            emit("note", "specs", "未识别项目语言，已跳过规格生成")
-        emit("finish", "specs", f"{len(generated)} 个文件" if generated else "跳过")
+            emit(
+                "note",
+                "specs",
+                "Project language not recognized; specification generation skipped",
+            )
+        emit("finish", "specs", f"{len(generated)} files" if generated else "skipped")
 
         scaled_files = await self._prepare_benchmark_scale(root, layout, contract, emit)
         if scaled_files:
@@ -259,12 +264,14 @@ class ProjectBootstrapService:
                 load_correctness_spec(layout.correctness_spec_path),
             )
             if not correctness.passed and _drop_oracle_cases(layout.correctness_spec_path):
-                emit("detail", "correctness", "参考实现不可用，回退到契约校验")
-                correctness_run, correctness = (
-                    await self._context.correctness_service.run_baseline(
-                        task.id,
-                        load_correctness_spec(layout.correctness_spec_path),
-                    )
+                emit(
+                    "detail",
+                    "correctness",
+                    "Reference implementation is unavailable; falling back to contract validation",
+                )
+                correctness_run, correctness = await self._context.correctness_service.run_baseline(
+                    task.id,
+                    load_correctness_spec(layout.correctness_spec_path),
                 )
             if not correctness.passed:
                 emit("fail", "correctness", f"kind={correctness.failure_kind}")
@@ -285,16 +292,20 @@ class ProjectBootstrapService:
                 benchmark_spec,
             )
             if (
-                benchmark_run.status is not BenchmarkStatus.COMPLETED
-                or not benchmark_result.valid
+                benchmark_run.status is not BenchmarkStatus.COMPLETED or not benchmark_result.valid
             ) and benchmark_spec.inputs:
-                emit("detail", "benchmark", "多规模基准不可用，回退到单输入")
+                emit(
+                    "detail",
+                    "benchmark",
+                    "Multi-scale benchmark is unavailable; falling back to a single input",
+                )
                 _drop_scaling_inputs(layout.benchmark_spec_path)
-                benchmark_run, benchmark_result = (
-                    await self._context.benchmark_service.run_baseline(
-                        task.id,
-                        load_benchmark_spec(layout.benchmark_spec_path),
-                    )
+                (
+                    benchmark_run,
+                    benchmark_result,
+                ) = await self._context.benchmark_service.run_baseline(
+                    task.id,
+                    load_benchmark_spec(layout.benchmark_spec_path),
                 )
             if benchmark_run.status is not BenchmarkStatus.COMPLETED or not benchmark_result.valid:
                 emit("fail", "benchmark", "generated benchmark specification failed")
@@ -347,9 +358,7 @@ class ProjectBootstrapService:
             contract_source=contract.contract_source,
             contract_path=str(layout.contract_path),
             entrypoint=entrypoint,
-            correctness_run_id=(
-                str(correctness_run.id) if correctness_run is not None else ""
-            ),
+            correctness_run_id=(str(correctness_run.id) if correctness_run is not None else ""),
         )
 
     @staticmethod
@@ -377,7 +386,6 @@ class ProjectBootstrapService:
                 "or run algocode init --no-bootstrap to register without bootstrapping."
             ) from exc
         return ""
-
 
     async def _verify_persisted_state(
         self,
@@ -638,7 +646,7 @@ class ProjectBootstrapService:
                 break
             if discovery is None:
                 discovery = ContractDiscoveryService(self._context)
-            emit("note", "specs", f"benchmarkHarness 不合格，尝试修复：{issue}")
+            emit("note", "specs", f"benchmarkHarness is invalid; attempting repair: {issue}")
             repaired = await discovery.repair_benchmark_harness(
                 contract,
                 root=root,
@@ -648,7 +656,7 @@ class ProjectBootstrapService:
                 break
             contract = repaired
         if issue is not None:
-            emit("note", "specs", f"放弃不可信的 benchmarkHarness：{issue}")
+            emit("note", "specs", f"Discarding untrusted benchmarkHarness: {issue}")
             return ()
         spec_path = layout.benchmark_spec_path
         harness = spec_path.parent / "harness.py"
@@ -686,9 +694,8 @@ class ProjectBootstrapService:
         raw["scope"] = "process"
         raw.pop("inputs", None)
         spec_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
-        emit("detail", "specs", f"使用 harness 重复 {rounds} 轮")
+        emit("detail", "specs", f"Benchmark harness will repeat {rounds} rounds")
         return (harness.relative_to(root).as_posix(),)
-
 
     async def _calibrate_harness(
         self,
@@ -721,7 +728,6 @@ class ProjectBootstrapService:
             return None
         return max(CALIBRATION_ROUNDS, int(TARGET_BENCHMARK_SECONDS / per_round))
 
-
     async def _run_probe(self, root: Path, command: tuple[str, ...]) -> float | None:
         """Run a benchmark command once and return its wall-clock duration."""
 
@@ -735,7 +741,6 @@ class ProjectBootstrapService:
         if result.start_failed or result.timed_out or result.exit_code != 0:
             return None
         return result.duration_seconds
-
 
     async def _run_contract_test(
         self,
@@ -1171,6 +1176,8 @@ def _harness_command(
     if not command:
         return None
     return [str(command[0]), harness_relative, str(rounds)]
+
+
 MAX_SCALING_INPUTS = 6
 
 
@@ -1246,8 +1253,7 @@ def _oracle_cases(contract: ProjectContract) -> list[dict[str, object]]:
     """
 
     return [
-        {"id": f"oracle-{item['id']}", "input": item["input"]}
-        for item in _scaling_inputs(contract)
+        {"id": f"oracle-{item['id']}", "input": item["input"]} for item in _scaling_inputs(contract)
     ]
 
 

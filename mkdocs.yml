@@ -1,7 +1,7 @@
 site_name: Algocode Docs
 site_description: Algocode 可验证算法优化 Agent 的用户与开发文档
 site_url: "https://algocode.chat/docs/"
-repo_url: https://github.com/Duck755/Algocode
+repo_url: https://github.com/acfoundry/Algocode
 docs_dir: docs
 site_dir: site
 
@@ -90,3 +90,37 @@ nav:
       - v0.1.2: changelog/v0.1.2.md
       - v0.1.1: changelog/v0.1.1.md
       - v0.1.0: changelog/v0.1.0.md
+  - English:
+      - Home: en/index.md
+      - Getting Started:
+          - Installation: en/getting-started/installation.md
+          - Quick Start: en/getting-started/quickstart.md
+          - Configuration: en/getting-started/configuration.md
+          - Troubleshooting: en/getting-started/troubleshooting.md
+      - Command Guide:
+          - Overview: en/commands/index.md
+      - User Guide:
+          - Quick Workflow: en/user-guide/quick-workflow.md
+          - Complete Workflow: en/user-guide/workflow.md
+      - Core Concepts:
+          - Architecture: en/concepts/architecture.md
+          - Evidence Model: en/concepts/evidence-model.md
+          - Candidate Lifecycle: en/concepts/candidate-lifecycle.md
+          - Storage and Artifacts: en/concepts/storage-and-artifacts.md
+          - Policy, Approval, and Sandbox: en/concepts/policy-approval-sandbox.md
+          - Model Providers: en/concepts/model-providers.md
+      - Reference:
+          - CLI: en/reference/cli.md
+          - Configuration: en/reference/config.md
+          - Project Layout: en/reference/project-layout.md
+          - Correctness Schema: en/reference/correctness-spec.md
+          - Benchmark Schema: en/reference/benchmark-spec.md
+          - Contract Schema: en/reference/contract-schema.md
+      - Development:
+          - Code Structure: en/development/code-structure.md
+          - Testing: en/development/testing.md
+          - Release: en/development/release.md
+      - Changelog:
+          - v0.1.2: en/changelog/v0.1.2.md
+          - v0.1.1: en/changelog/v0.1.1.md
+          - v0.1.0: en/changelog/v0.1.0.md

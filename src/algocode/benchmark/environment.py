@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from algocode.process_output import run_text
+
 
 def compute_environment_hash(workspace: str | Path | None = None) -> str:
     """Return a stable fingerprint for the local execution environment."""
@@ -92,12 +94,11 @@ def _total_memory_bytes() -> int | None:
 
 def _command_version(command: tuple[str, ...]) -> str:
     try:
-        completed = subprocess.run(
+        completed = run_text(
             command,
             check=False,
             capture_output=True,
             timeout=5,
-            text=True,
         )
     except (OSError, subprocess.SubprocessError):
         return "unavailable"

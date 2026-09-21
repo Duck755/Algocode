@@ -55,10 +55,10 @@ def test_command(
             request_id=f"test_{uuid4().hex}",
             model=model,
             system=(
-                f"当前使用的模型是 {selected_provider}/{model_config.model}。"
-                "请用中文简洁回答用户。"
+                f"The current model is {selected_provider}/{model_config.model}. "
+                "Answer the user briefly in English."
             ),
-            messages=(Message(role="user", content="你好，你是什么模型"),),
+            messages=(Message(role="user", content="Hello. What model are you?"),),
             timeout_seconds=60,
         )
         response = asyncio.run(provider.complete(request))

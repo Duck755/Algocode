@@ -4,7 +4,7 @@
 
 # Algocode
 
-> *A verifiable algorithm optimization agent for C++ / Python: local-first, evidence-driven, and rollback-safe.*
+> *A verifiable algorithm optimization agent for C++ / Python. Local first, evidence driven, rollback safe.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
@@ -12,189 +12,120 @@
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.90%2B-007ACC?logo=visualstudiocode)](https://code.visualstudio.com/)
 [![OpenAI Compatible](https://img.shields.io/badge/API-OpenAI_Compatible-green)](https://platform.openai.com/)
 
-**Algocode is not a black box that silently rewrites your code.**
+**Algocode is not a black-box agent that edits your code directly.**
 
-It first builds a behavioral contract, then explores optimizations inside isolated Git worktrees, and finally decides whether a candidate is worth applying based on three kinds of evidence: Correctness, Contract, and Benchmark.
+It establishes a behavioral contract first, explores optimizations in isolated worktrees, and uses Correctness, Contract, and Benchmark evidence to decide whether a candidate is worth applying.
 
-[简体中文](README.md) · [Quick Start](#quick-start) · [VS Code](#vs-code-extension) · [Workflow](#optimization-workflow) · [CLI](#cli-command-reference)
+[Chinese](README.md) · [Quick Start](#quick-start) · [VS Code](#vs-code-extension) · [Command Reference](#cli-command-reference)
 
 </div>
 
 ---
 
-## What It Does
+## What Is Algocode?
 
-Give Algocode a runnable C++ or Python project:
+Algocode is a verifiable algorithm optimization agent CLI for C++ and Python. It uses contracts, correctness checks, and performance evidence to drive code optimization, and only requires a model endpoint to get started.
 
-```text
-Input: test.py
+It reads a Git repository and its entry points, then uses a tool-using Agent to analyze algorithmic hotspots, problem structure, and complexity. Candidate implementations are generated in isolated Git worktrees. The Agent can read complete files, search the codebase, inspect related files, run builds and correctness tests, and execute benchmarks, enabling algorithmic changes rather than surface-level rewrites.
 
-Algocode automatically:
-  1. Builds the project's behavioral contract
-  2. Captures baseline output and baseline performance
-  3. Analyzes algorithmic hot spots and proposes optimizations
-  4. Generates candidate implementations in isolated worktrees
-  5. Verifies correctness and contract compliance
-  6. Compares benchmark results
-  7. Generates reports and diffs, then waits for you to decide whether to apply
-```
+Algocode does not modify the user project directly. Every candidate must pass Correctness, Contract, and Benchmark validation. Users can inspect the structured evidence chain, diff, confidence intervals, and decision results, then explicitly run `accept` and `apply`. If problems appear after application, `rollback` restores the workspace.
 
-Example output:
+Beyond single-pass optimization, Algocode supports multi-candidate search. When a direction has significant positive evidence but has not met acceptance criteria, it refines the same candidate. When a direction has no measurable benefit, it creates a new candidate. Algocode supports both CLI and VS Code entry points and is designed for algorithm competition code, data structures, graph algorithms, string algorithms, caches, parsers, and other programs with verifiable behavior.
 
-```text
-Task: task_xxxxxxxx
-Status: completed
-Correctness: passed
-Benchmark valid: true
-Baseline median: 0.7594s
-Candidate median: 0.5357s
-Improvement: 29.4573%
-```
+## Why Algocode?
 
-Algocode is designed for algorithm contest code, data structure implementations, graph algorithms, string algorithms, caches, parsers, concurrency components, and other code with deterministic behavior.
+### Limitations of General-Purpose Agents
 
----
+- **They can edit code but cannot prove correctness.** Models can change boundaries, errors, ordering, or state transitions in ways ordinary tests may miss.
+- **They tend to make local changes.** General-purpose agents often modify loops and variables without reanalyzing the problem structure for a true algorithmic improvement.
+- **Performance results lack reliable evidence.** A single `time` command or one benchmark run can be dominated by system load, cache state, interpreter startup, or environment changes.
+- **Long tasks drift from the original objective.** As context grows, the model may forget the behavioral contract, protected files, and validation constraints.
+- **Candidate lifecycles are unstable.** Without isolated candidates, evidence gates, and rollback, failed attempts are difficult to continue safely.
+- **Direction comparison is difficult.** If multiple approaches exist only in chat and temporary commands, performance, correctness, and risk cannot be compared systematically.
+- **Processes are hard to audit and reproduce.** The reason for accepting or rejecting a candidate, and the exact tests and benchmarks that ran, are often not recorded.
+- **Quality depends too heavily on the model and prompt.** Changing a model or prompt can materially change the result.
 
-## New in v0.1.2
+### What Algocode Provides
 
-- **Multi-candidate search**: up to three candidate attempts by default, each exploring a different algorithmic direction.
-- **Same-candidate refinement**: a promising candidate is reopened for another implementation pass, up to two refinements by default.
-- **Algorithm-level analysis**: Analyze now requires problem structure, a complexity baseline, and at least three candidate algorithms. Plan must state the algorithm, before/after complexity, and why it is faster.
-- **Scaled benchmarks**: stdin programs can receive a generated input matrix, and short workloads use a fixed-round benchmark harness.
-- **Paired evidence**: baseline and candidate samples are paired by input and repeat, then compared with a paired permutation test, bootstrap confidence interval, and MAD robust variation.
-- **Phase-scoped tools**: each phase exposes only its allowed tools and includes remaining turn/tool budgets and candidate-check requirements.
-- **Explainable back-jumps**: refinement and new-candidate searches emit a frozen line that explains why the runtime returned to an earlier phase.
+- **Behavioral contracts first.** Public APIs, inputs and outputs, errors, state transitions, ordering, and boundary behavior are defined before optimization.
+- **Isolated optimization.** Each candidate evolves in an independent Git worktree and never modifies the user project before validation.
+- **Algorithmic analysis.** Input structure, data distribution, operation algebra, query/update mix, and complexity gaps are analyzed to propose multiple algorithmic directions.
+- **Behavior verification.** Correctness, Contract, and reference cross-checks detect changes to observable behavior.
+- **Trustworthy benchmarks.** Warmup, repeated sampling, interleaved execution, multi-scale inputs, and fixed harnesses reduce environment noise.
+- **Statistical decisions.** Paired permutation tests, bootstrap confidence intervals, and MAD-based robust variation distinguish real gains from noise.
+- **Algorithmic gain detection.** Runtime growth is fitted across input sizes so a lower asymptotic exponent can be recognized even when small inputs are slower.
+- **Refinement of promising candidates.** A direction with meaningful positive evidence can be reopened and refined.
+- **Search across other directions.** When a direction has no measurable benefit, Algocode creates a new candidate from historical evidence.
+- **Constrained Agent behavior.** Each phase exposes only an allowlist of tools and receives remaining turns, tool-call budgets, and self-check requirements.
+- **Human control.** Candidates must be reviewed and explicitly accepted before they are applied.
+- **Safe rollback.** Applied candidates can be rolled back through a manifest.
+- **Replaceable models.** Different model providers reuse the same contract, validation, benchmark, and candidate lifecycle.
+- **Complete evidence chains.** Contract, Correctness, Benchmark, Decision, Report, model logs, and candidate records are persisted for audit and reproduction.
 
----
+## Performance and Results Notice
 
-## Core Features
+Algocode uses large language models to analyze source code and generate candidate optimizations. Performance may improve, remain unchanged, or regress. Results depend on source quality, project structure, model capability, input size, runtime environment, and system load.
 
-- **Contract-first**: Public APIs, inputs and outputs, configuration semantics, error behavior, and boundary cases are established before optimization, preventing changes that are faster but behaviorally wrong.
-- **Evidence-driven**: Correctness, Contract, and Benchmark results are persisted. Accept and reject decisions are based on real evidence, not model self-assessment.
-- **Isolated candidates**: The CLI experiments inside Git worktrees. The VS Code extension uses a temporary shadow workspace. Your project is not modified directly.
-- **Human-controlled**: Diff, Review, and Apply are separate steps. Inspect the evidence first, then decide whether to apply. Applied changes can be rolled back.
-- **Auditable**: Model calls, tool calls, phase results, candidate snapshots, and optimization records are stored.
-- **Visible phase progress**: The VS Code terminal shows the current phase, phase index, turn, active tool, tool count, and elapsed time.
-- **Retryable**: If an attempt regresses, lacks evidence, or gets blocked, Algocode can plan another direction using recorded history.
-- **Multiple model providers**: OpenAI, DeepSeek, OpenRouter, Kimi, Zhipu GLM, MiniMax, Anthropic Claude, Doubao, Qwen, and arbitrary OpenAI-compatible services.
-- **Local-first**: Execution is local by default. Docker and WSL2 are optional isolation backends.
-- **CLI + VS Code**: Suitable for terminal automation and day-to-day editor workflows.
+Algocode does not guarantee a positive result and does not replace human code review. Use the actual Correctness, Contract, Benchmark, Diff, and Review evidence, and apply only after verifying behavior and expected gains.
 
----
+## How Algocode Protects Correctness
 
-## Performance and Result Disclaimer
+Algocode does not rely on model self-evaluation. It combines behavioral contracts, frozen baselines, Correctness, Contract Tests, and reference implementations:
 
-Algocode uses large language models to analyze source code and generate candidate optimizations. Performance may improve, remain effectively unchanged, or become worse. Results depend on source quality, project structure, model capability, input size, runtime environment, and system load.
+- **Contract first:** define public APIs, I/O, errors, state transitions, ordering, and boundaries before optimization. Removing checks or changing tests to gain speed is prohibited.
+- **Frozen baseline:** preserve the original source snapshot, environment hash, baseline output, and baseline performance. Every candidate is compared with the same baseline.
+- **Layered verification:** fixed cases, reference implementations, stress tests, and determinism checks validate output, exit codes, exceptions, API returns, and state changes.
+- **Reference cross-check:** an unmodified reference implementation is stored in a protected directory. Candidates must match it on boundary and small-scale inputs.
+- **Phase gates:** candidates must pass Build, Correctness, and Contract before Benchmark. Apply additionally checks Decision, stale state, and the Rollback Manifest.
+- **Human confirmation:** even after automated validation passes, the user must inspect Diff and Review and explicitly run `accept` and `apply`.
 
-Algocode does not guarantee positive performance gains and does not replace human code review. Use the actual Correctness, Contract, Benchmark, Diff, and Review results to decide whether a candidate should be applied.
+## Usage
 
----
-
-## Usage Rules (Read Before Optimizing)
-
-Algocode is intended for code with verifiable behavior. Confirm the following before starting.
-
-### General Requirements
-
-| Requirement | Description |
-|---|---|
-| Git repository | The project must be a Git repository. Algocode initializes one automatically if needed. |
-| Single primary language | One project supports one primary language. If Python and C++ both exist, C++ is preferred. |
-| Clear entry point | There must be an executable entry file that produces output. |
-| Deterministic output | The same input must produce the same output for Correctness verification. |
-| Process-level benchmark | Benchmarking measures the complete process. Function-level benchmarks are not supported. |
-
-### Python Projects
-
-- A `.py` file exists, or `pyproject.toml` / `setup.py` is present.
-- The entry point prefers `main.py` and `test.py`, then falls back to the first non-`__init__.py` file.
-- The entry program runs successfully and exits with code 0.
-
-### C++ Projects
-
-- A `.cpp` / `.cc` / `.cxx` file exists, or `CMakeLists.txt` / `Makefile` is present.
-- `g++` or `clang++` is installed with C++17 support.
-- The entry point prefers `main.cpp` and `test.cpp`, then falls back to the first source file.
-- The source compiles and runs successfully with exit code 0.
-
-### Unsupported Scenarios
-
-- Deeply mixed Python and C++ projects, such as Python calling a C++ extension.
-- Complex multi-translation-unit or large CMake projects.
-- Code that depends on the network, databases, GPUs, or uncontrolled external services at runtime.
-- Function-level or module-level benchmarking.
-
----
-
-## Environment and Dependencies
-
-### System Requirements
+### Requirements
 
 | Dependency | Minimum | Notes |
-|---|---|---|
-| Python (required) | 3.11+ | Runtime environment |
-| Git (required) | — | Worktree isolation and versioning |
-| C++ compiler | — | Required for C++ projects; supports `g++` or `clang++` |
+| --- | --- | --- |
+| Python (required) | 3.11+ | Runtime environment. |
+| Git (required) | any | Worktree isolation and version management. |
+| C++ compiler | any | Required for C++ projects; supports `g++` or `clang++`. |
 
 Optional enhancements:
 
-- **Docker / WSL2**: stronger sandbox isolation, optional.
-- **VS Code**: context menu, live phase progress, Diff, Apply, and Rollback.
+- **Docker / WSL2** for stronger sandbox isolation.
+- **VS Code** for context menus, live phase progress, Diff, Apply, and Rollback.
 
----
+### Code Requirements
 
-## Quick Start
+- The project to optimize should be a Git repository with an entry point that can be built and run directly.
+- Python and C++ are supported; the project should provide a clear program or test entry point.
+- Inputs, outputs, exit codes, and key behaviors should be reliably reproducible so that Correctness and Benchmark checks can be established.
+- Avoid dependencies on unavailable private data, network services, or non-reproducible environments; complex dependencies should be configured in advance.
+- The code should have a clear optimization goal, such as reducing time complexity, lowering memory usage, or improving hot-path performance.
 
-### Option 1: Install from PyPI
+### CLI
+
+#### Installation
 
 ```bash
 pip install algocode-agent
 ```
 
-Install the VS Code extension:
+The extension command automatically looks for `code`, `code-insiders`, or `codium`.
 
-```bash
-algocode vscode install
-```
+After installation, the `algocode` command is available globally.
 
-The command automatically searches for `code`, `code-insiders`, or `codium`.
+#### Quick Usage
 
-If the VS Code CLI cannot be found:
-
-```powershell
-algocode vscode install --code "{VSCodePath}\bin\code.cmd"
-```
-
-### Option 2: Install from Source
-
-Windows PowerShell:
-
-```powershell
-git clone https://github.com/acd2113/Algocode.git
-cd Algocode
-python -m venv .venv
-.\.venv\Scripts\python -m pip install -e ".[dev]"
-.\.venv\Scripts\python -m algocode doctor
-```
-
-macOS / Linux:
-
-```bash
-git clone https://github.com/acd2113/Algocode.git
-cd Algocode
-python3 -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"
-.venv/bin/python -m algocode doctor
-```
-
-### Configure a Model
+Configure a model:
 
 ```bash
 algocode api
 algocode test
 ```
 
-`algocode api` configures the provider, Base URL, model ID, and API key. API keys are stored in the local credential file and are not written into project configuration.
+![img_ 5.png](docs/picture/img_%205.png)
+
+`algocode api` selects the provider, Base URL, model ID, and API key. The key is stored in a local credential file and is not written to project configuration.
 
 Switch the default model:
 
@@ -202,23 +133,28 @@ Switch the default model:
 algocode model
 ```
 
-### Check the Environment
+### Environment Check
 
 ```bash
 algocode doctor
 ```
 
-Confirm that the required checks pass before running the first optimization.
+![img_5.png](docs/picture/img_5.png)
+
+Run this check first to confirm that the environment meets the requirements.
 
 ### Run the First Optimization
 
-Run in the target project directory:
+From the project directory:
 
 ```bash
 algocode init
+```
+![img_7.png](docs/picture/img_7.png)
+```bash
 algocode optimize
 ```
-
+![img_8.png](docs/picture/img_8.png)
 Inspect status, evidence, and diff:
 
 ```bash
@@ -234,60 +170,41 @@ algocode apply
 algocode rollback
 ```
 
-Retry with optimization history:
-
-```bash
-algocode retry
-```
-
 ---
 
-## VS Code Extension
+### VS Code Extension
 
-### Install
+#### Installation
 
-Recommended:
+Install the CLI first:
+
+```bash
+pip install algocode-agent
+```
+
+Install the extension:
 
 ```bash
 algocode vscode install
 ```
 
-Manual VSIX installation:
+#### Usage
 
-```powershell
-code --install-extension "path\to\algocode-vscode-0.1.2.vsix" --force
-```
+**Configure the model** as described above.
 
-Or use:
+Right-click a `.py`, `.cpp`, `.cc`, or `.cxx` file and select an Algocode action:
 
-```text
-Extensions -> ... -> Install from VSIX...
-```
-
-### Usage
-
-Right-click a `.py`, `.cpp`, `.cc`, or `.cxx` file and choose:
-
-```text
-Algocode
-    Optimize
-    Rollback
-    Apply
-    Show Diff
-    Review
-```
-
-Actions:
+![img_6.png](docs/picture/img_6.png)
 
 | Action | Description |
-|---|---|
-| Optimize | Start the full optimization workflow in a temporary shadow workspace. |
-| Rollback | Undo the most recent candidate applied through the extension. |
-| Apply | Apply the most recent candidate to the original project. |
+| --- | --- |
+| Optimize | Run the full optimization workflow in a temporary shadow workspace. |
+| Rollback | Undo the most recently applied extension candidate. |
+| Apply | Apply the latest candidate to the original project. |
 | Show Diff | Open the native VS Code diff. |
 | Review | Inspect Candidate, Correctness, Benchmark, Decision, and changed files. |
 
-The extension opens an `Algocode` terminal and displays live progress:
+The extension opens an `Algocode` terminal and shows live progress:
 
 ```text
 [algocode] analyze | 1/10 | turn 2 | running read_file (3s) | tools 4 | 18s
@@ -300,25 +217,25 @@ The extension opens an `Algocode` terminal and displays live progress:
 ## CLI Command Reference
 
 ```bash
-$ algocode --help
+algocode --help
 ```
 
 | Command | Description |
-|---|---|
+| --- | --- |
 | `algocode api` | Configure a model provider and API key. |
 | `algocode test` | Verify the model connection. |
-| `algocode model` | Switch the default model. |
+| `algocode model` | Select the default model. |
 | `algocode doctor` | Check the local environment. |
-| `algocode init` | Initialize the project, build the contract, and capture the baseline. |
-| `algocode optimize` | Run the full optimization workflow. |
-| `algocode retry` | Re-plan using optimization history. |
+| `algocode init` | Initialize the project, generate a contract, and capture a baseline. |
+| `algocode optimize` | Run the complete optimization workflow. |
+| `algocode retry` | Replan from historical optimization records. |
 | `algocode status` | Show the current task, phase, and progress. |
-| `algocode review` | Show Correctness, Benchmark, and decision evidence. |
+| `algocode review` | Inspect Correctness, Benchmark, and Decision evidence. |
 | `algocode diff` | Show candidate changes. |
 | `algocode apply` | Accept and apply a candidate. |
 | `algocode rollback` | Roll back an applied candidate. |
 | `algocode report` | Generate a Markdown report. |
-| `algocode vscode install` | Install the VS Code extension bundled with the Python package. |
+| `algocode vscode install` | Install the bundled VS Code extension. |
 
 Most commands support `--json`:
 
@@ -330,94 +247,28 @@ algocode optimize --json
 
 ---
 
-## Usage Examples
-
-Configure the provider and API key with `algocode api`:
-
-![Provider configuration](docs/picture/img_1.png)
-
-Place the files to optimize in a folder:
-
-![Project directory](docs/picture/img.png)
-
-Run `algocode init` to initialize the project, build the contract, and capture the baseline:
-
-![Initialization](docs/picture/img_2.png)
-
-Run `algocode optimize` to start optimization. `Status: completed` means the workflow completed. You can then run `review`, `diff`, `report`, `apply`, and `rollback`:
-
-![Optimization result](docs/picture/img_3.png)
-
-### Option 1: Full CLI Workflow
-
-```bash
-algocode init
-algocode optimize
-algocode status
-algocode review
-algocode diff
-```
-
-Apply if the result meets your requirements:
-
-```bash
-algocode apply <task-id> <candidate-id>
-```
-
-Roll back when necessary:
-
-```bash
-algocode rollback
-```
-
-### Option 2: VS Code Workflow
-
-```text
-Right-click a file
-  -> Algocode
-  -> Optimize
-  -> watch live phases
-  -> inspect Diff / Review
-  -> Apply or Rollback
-```
-
-This is intended for optimization, review, and apply directly from the editor.
-
-### Option 3: Scripts and Automation
-
-```bash
-algocode init --json
-algocode optimize --json
-algocode status --json
-algocode review --json
-```
-
-JSON output works well with CI, batch scripts, or higher-level tools.
-
----
-
 ## Optimization Workflow
 
-Gates exist between phases:
+Phase gates enforce evidence order:
 
-- If Contract or Correctness fails, Benchmark is not started.
-- If Benchmark is invalid or has no positive gain, the candidate is not accepted.
-- Apply checks whether the candidate is stale.
-- Rollback undoes an applied candidate.
+- If Contract or Correctness fails, Benchmark is not allowed.
+- If Benchmark is invalid or shows no positive gain, the candidate cannot be accepted.
+- Before Apply, Algocode checks whether the candidate is stale.
+- Rollback restores the workspace after an applied candidate.
 
 ---
 
-## Verification Model
+## Verification System
 
-Algocode separates optimization evidence into three categories:
+Algocode separates evidence into three categories:
 
 | Type | Purpose |
-|---|---|
-| **Correctness** | Verify that the candidate reproduces baseline behavior. Supports cases, oracle, stress, and hybrid modes. |
+| --- | --- |
+| **Correctness** | Verify that the candidate reproduces baseline behavior using `cases`, `oracle`, `stress`, or `hybrid` modes. |
 | **Contract** | Protect public APIs, configuration semantics, error types, state transitions, ordering, and boundary behavior. |
-| **Benchmark** | Measure warmup, repeated samples, median, variation, environment hash, and related data. |
+| **Benchmark** | Measure warmup, repeated samples, median, variation, and environment hash in a controlled environment. |
 
-Correctness always takes priority over speed when the two conflict.
+When speed and correctness conflict, correctness wins.
 
 ---
 
@@ -425,17 +276,17 @@ Correctness always takes priority over speed when the two conflict.
 
 ```text
 CLI / VS Code
-      ↓
+      |
 Application Services
-      ↓
+      |
 Runtime Agent
-      ↓
+      |
 Context / Tools / Providers
-      ↓
+      |
 Language Adapters
-      ↓
+      |
 Git Worktree / Sandbox
-      ↓
+      |
 Storage / Event Store / Artifacts
 ```
 
@@ -443,45 +294,45 @@ Storage / Event Store / Artifacts
 
 ## Project Structure
 
-The complete source, test, and runtime directory layout is documented in [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md).
+See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for the complete source, test, extension, and runtime layout.
 
-### Source Layout
+### Source Structure
 
 ```text
 src/algocode/
-├── cli/                  # CLI entry points and output
-├── application/          # Task, Candidate, Baseline, Benchmark services
+├── cli/                  # CLI command entry points and output
+├── application/          # Task, Candidate, Baseline, Benchmark, and report services
 ├── domain/               # Entities, value objects, and events
-├── runtime/              # Phase machine, Tool Loop, Retry, model logs
+├── runtime/              # Phase machine, tool loop, retry, model logs
 ├── config/               # Configuration loading and models
-├── context/              # Context builder, fact ledger, and budgets
-├── tools/                # File, process, and validation tools
+├── context/              # Context assembly, fact ledger, and budgets
+├── tools/                # Files, process, and validation tools
 ├── policy/               # Policy engine
 ├── approval/             # Approval service
 ├── sandbox/              # Native / Docker / WSL2 execution backends
-├── security/             # Credentials and redaction
+├── security/             # Credentials and secret redaction
 ├── providers/            # Model provider adapters
 ├── languages/            # Python / C++ language adapters
-├── correctness/          # Correctness verification
+├── correctness/          # Correctness validation
 ├── benchmark/            # Benchmark engine
 ├── profiling/            # Profiling adapters
-├── workspace/            # Git worktrees, Apply, Rollback
-├── storage/              # SQLite event store, projections, artifacts
+├── workspace/            # Git worktree, Apply, Rollback
+├── storage/              # SQLite Event Store, Projection, Artifact
 └── resources/            # Resources and bundled VS Code extension
 ```
 
-### `.algocode` Runtime Layout
+### Project `.algocode`
 
-After `algocode init`, the target project contains:
+After `init`, the project root contains:
 
 ```text
 .algocode/
 ├── config.yaml           # Project configuration
 ├── config.local.yaml     # Optional local overrides
 ├── contract.json         # Behavioral contract
-├── task.txt              # Human-readable task summary
-├── current-task.json     # Machine-readable task state
-├── oracle/               # Correctness and contract tests
+├── task.txt              # Current task summary
+├── current-task.json     # Current task state
+├── oracle/               # Correctness and Contract Tests
 │   ├── check.py
 │   ├── correctness.yaml
 │   ├── contract_test.py
@@ -490,7 +341,7 @@ After `algocode init`, the target project contains:
 ├── benchmarks/
 │   └── benchmark.yaml
 └── cache/
-    ├── algocode.db       # Event store and projections
+    ├── algocode.db       # Event Store and projections
     ├── artifacts/
     ├── model-logs/
     ├── optimization-records/
@@ -505,7 +356,7 @@ After `algocode init`, the target project contains:
 
 ### Providers
 
-Supported providers:
+Supported providers include:
 
 ```text
 OpenAI
@@ -515,7 +366,7 @@ Kimi
 Zhipu GLM
 MiniMax
 Anthropic Claude
-Volcengine Doubao
+Volcano Engine Doubao
 Qwen
 Custom OpenAI-compatible
 Local Ollama / vLLM
@@ -533,25 +384,25 @@ This generates:
 report.md
 ```
 
-in the project root. Internal artifacts remain under `.algocode/cache/artifacts`.
+Internal artifacts are retained under `.algocode/cache/artifacts`.
 
 ---
 
 ## Security and Data
 
 - Algocode runs locally by default.
-- API keys are stored in the local credential file and are not written into project configuration.
-- Model call logs are redacted before being written under `.algocode/cache/model-logs`.
-- Contract, Correctness, Benchmark, and Oracle files are protected files.
-- Docker and WSL2 are optional isolation enhancements.
-- Running on directories containing sensitive data, production credentials, or untrusted code is not recommended.
+- API keys are stored in the local credential file, not project configuration.
+- Model-call logs are redacted before being written to `.algocode/cache/model-logs`.
+- Contract, Correctness, Benchmark, and Oracle files are protected.
+- Docker / WSL2 are optional isolation layers.
+- Avoid running in directories containing sensitive data, production secrets, or untrusted code.
 
 ---
 
 ## Development
 
 ```bash
-git clone https://github.com/acd2113/Algocode.git
+git clone https://github.com/acfoundry/Algocode.git
 cd Algocode
 python -m venv .venv
 .venv/bin/python -m pip install -e ".[dev]"
@@ -581,11 +432,9 @@ npx --yes @vscode/vsce package
 
 ---
 
-## Publishing
+## Release
 
-Python package publishing is handled by GitHub Actions.
-
-Release flow:
+Python package releases are handled by GitHub Actions.
 
 ```bash
 git tag v0.1.2
@@ -599,7 +448,7 @@ algocode_agent-0.1.2.tar.gz
 algocode_agent-0.1.2-py3-none-any.whl
 ```
 
-See [`docs/changelog/v0.1.2.md`](docs/changelog/v0.1.2.md) for the full changelog.
+See [`docs/changelog/v0.1.2.md`](docs/changelog/v0.1.2.md) for full changes.
 
 Users can install with:
 
@@ -614,7 +463,7 @@ algocode vscode install
 
 Issues and pull requests are welcome.
 
-When reporting an issue, include:
+When opening an issue, include:
 
 - Operating system and Python version
 - Algocode version
@@ -622,7 +471,7 @@ When reporting an issue, include:
 - Expected and actual behavior
 - Relevant logs or screenshots
 
-Before submitting code:
+Before submitting code, run:
 
 ```bash
 python -m pytest
@@ -639,6 +488,6 @@ This project is licensed under the [MIT License](LICENSE).
 
 <div align="center">
 
-> **Algocode** — evidence for every optimization.
+> **Algocode** — evidence for every algorithm optimization.
 
 </div>

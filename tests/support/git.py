@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
+
+from algocode.process_output import run_text
 
 
 def init_git_repository(path: Path, files: dict[str, str] | None = None) -> Path:
@@ -19,15 +20,14 @@ def init_git_repository(path: Path, files: dict[str, str] | None = None) -> Path
 
 
 def git_output(path: Path, *args: str) -> str:
-    completed = subprocess.run(
+    completed = run_text(
         ("git", *args),
         cwd=path,
         check=True,
         capture_output=True,
-        text=True,
     )
     return completed.stdout.strip()
 
 
 def _run(path: Path, *command: str) -> None:
-    subprocess.run(command, cwd=path, check=True, capture_output=True, text=True)
+    run_text(command, cwd=path, check=True, capture_output=True)

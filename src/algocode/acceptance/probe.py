@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +15,7 @@ from algocode.correctness.spec import CorrectnessCase, CorrectnessSpec
 from algocode.domain.errors import DecisionError
 from algocode.domain.model import TaskPhase
 from algocode.policy.types import PolicyEffect, PolicyRequest
+from algocode.process_output import run_text
 from algocode.tools.types import ToolContext
 
 
@@ -34,7 +34,7 @@ def _init_git_repository(root: Path, files: dict[str, str]) -> Path:
 
 
 def _git(root: Path, *args: str) -> None:
-    subprocess.run(("git", *args), cwd=root, check=True, capture_output=True, text=True)
+    run_text(("git", *args), cwd=root, check=True, capture_output=True)
 
 
 @dataclass(frozen=True, slots=True)

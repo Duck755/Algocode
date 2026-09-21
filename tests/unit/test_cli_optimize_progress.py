@@ -118,26 +118,26 @@ class _Stream(io.StringIO):
 
 
 class LabelTests(unittest.TestCase):
-    def test_phase_labels_are_chinese(self) -> None:
-        self.assertEqual(phase_label("analyze"), "分析")
-        self.assertEqual(phase_label("generate_candidate"), "建候选")
-        self.assertEqual(phase_label("report"), "报告")
+    def test_phase_labels_are_english(self) -> None:
+        self.assertEqual(phase_label("analyze"), "Analyze")
+        self.assertEqual(phase_label("generate_candidate"), "Generate Candidate")
+        self.assertEqual(phase_label("report"), "Report")
 
     def test_unknown_phase_falls_back_to_the_raw_name(self) -> None:
         self.assertEqual(phase_label("future_phase"), "future_phase")
-        self.assertEqual(phase_label(None), "未知阶段")
+        self.assertEqual(phase_label(None), "Unknown Phase")
 
-    def test_tool_labels_are_chinese(self) -> None:
-        self.assertEqual(tool_label("read_required_files"), "读取必需文件")
-        self.assertEqual(tool_label("run_correctness"), "运行正确性测试")
+    def test_tool_labels_are_english(self) -> None:
+        self.assertEqual(tool_label("read_required_files"), "Read Required Files")
+        self.assertEqual(tool_label("run_correctness"), "Run Correctness")
         self.assertEqual(tool_label("unknown_tool"), "unknown_tool")
-        self.assertEqual(tool_label(None), "工具")
+        self.assertEqual(tool_label(None), "Tool")
 
     def test_tool_status_labels(self) -> None:
-        self.assertEqual(tool_status_label("success"), "成功")
-        self.assertEqual(tool_status_label("error"), "失败")
-        self.assertEqual(tool_status_label("interrupted"), "失败")
-        self.assertEqual(tool_status_label(None), "失败")
+        self.assertEqual(tool_status_label("success"), "success")
+        self.assertEqual(tool_status_label("error"), "failed")
+        self.assertEqual(tool_status_label("interrupted"), "failed")
+        self.assertEqual(tool_status_label(None), "failed")
 
 
 class AnalyzeEventsTests(unittest.TestCase):
@@ -184,7 +184,7 @@ class LineFormatTests(unittest.TestCase):
 
         self.assertEqual(
             line,
-            "[algocode] 分析 | 1/10 | 第 2 轮 | 运行中 搜索代码 (12s) | 工具 2 | 28s",
+            "[algocode] Analyze | 1/10 | Round 2 | Running Search Code (12s) | Tools 2 | 28s",
         )
 
     def test_ticking_line_says_thinking_without_an_active_tool(self) -> None:
@@ -192,8 +192,8 @@ class LineFormatTests(unittest.TestCase):
 
         line = tick_line(snapshot, now=BASE + timedelta(seconds=5))
 
-        self.assertIn("思考中", line)
-        self.assertNotIn("运行中", line)
+        self.assertIn("Thinking", line)
+        self.assertNotIn("Running", line)
 
     def test_frozen_action_line_reports_success(self) -> None:
         snapshot = analyze_events(_full_events())
@@ -202,7 +202,7 @@ class LineFormatTests(unittest.TestCase):
 
         self.assertEqual(
             line,
-            "[algocode] 分析 | 1/10 | 第 1 轮 | 读取必需文件 成功 | 工具 1 | 12s \u2714",
+            "[algocode] Analyze | 1/10 | Round 1 | Read Required Files success | Tool 1 | 12s \u2714",  # noqa: E501
         )
 
     def test_frozen_action_line_reports_failure(self) -> None:
@@ -210,7 +210,7 @@ class LineFormatTests(unittest.TestCase):
 
         line = action_line(snapshot.actions[2], marker="\u2716")
 
-        self.assertEqual(line, "[algocode] 基线 | 2/10 | 编译 失败 | 工具 1 | 5.0s \u2716")
+        self.assertEqual(line, "[algocode] Baseline | 2/10 | Build failed | Tool 1 | 5.0s \u2716")
 
     def test_phase_summary_line_counts_turns_and_tools(self) -> None:
         snapshot = analyze_events(_analysis_events())
@@ -221,7 +221,7 @@ class LineFormatTests(unittest.TestCase):
 
         self.assertEqual(
             line,
-            "[algocode] 分析 | 1/10 | 完成 · 2 轮推理 · 2 次工具调用 | 4m04s \u2714",
+            "[algocode] Analyze | 1/10 | Completed · 2 reasoning turns · 2 tool calls | 4m04s \u2714",  # noqa: E501
         )
 
     def test_transition_line_explains_a_back_jump(self) -> None:
@@ -229,8 +229,8 @@ class LineFormatTests(unittest.TestCase):
 
         line = transition_line(transition, marker="!", title="algocode")
 
-        self.assertIn("阶段回退", line)
-        self.assertIn("对比 → 实现", line)
+        self.assertIn("Phase fallback", line)
+        self.assertIn("Compare → Implement", line)
         self.assertIn("candidate has valid positive evidence", line)
         self.assertTrue(line.endswith("!"))
 
@@ -262,10 +262,10 @@ class LiveProgressTests(unittest.TestCase):
         self.assertEqual(
             lines,
             [
-                "[algocode] 分析 | 1/10 | 第 1 轮 | 读取必需文件 成功 | 工具 1 | 12s \u2714",
-                "[algocode] 分析 | 1/10 | 完成 · 2 轮推理 · 2 次工具调用 | 1m04s \u2714",
-                "[algocode] 基线 | 2/10 | 编译 失败 | 工具 1 | 5.0s \u2716",
-                "[algocode] 基线 | 2/10 | 完成 · 0 轮推理 · 1 次工具调用 | 6.0s \u2714",
+                "[algocode] Analyze | 1/10 | Round 1 | Read Required Files success | Tool 1 | 12s \u2714",  # noqa: E501
+                "[algocode] Analyze | 1/10 | Completed · 2 reasoning turns · 2 tool calls | 1m04s \u2714",  # noqa: E501
+                "[algocode] Baseline | 2/10 | Build failed | Tool 1 | 5.0s \u2716",
+                "[algocode] Baseline | 2/10 | Completed · 0 reasoning turns · 1 tool calls | 6.0s \u2714",  # noqa: E501
             ],
         )
         self.assertNotIn("\x1b", stream.getvalue())
@@ -300,7 +300,7 @@ class LiveProgressTests(unittest.TestCase):
 
         text = stream.getvalue()
         self.assertIn("\r\x1b[2K", text)
-        self.assertIn("运行中 搜索代码", text)
+        self.assertIn("Running Search Code", text)
         self.assertIn("\u2714", text)
         self.assertFalse(text.endswith("\n"))
         self.assertIn("\u2714", text.rsplit("\r\x1b[2K", 1)[0])
@@ -315,8 +315,8 @@ class LiveProgressTests(unittest.TestCase):
         live.close(ok=True)
 
         lines = stream.getvalue().splitlines()
-        self.assertTrue(any("阶段回退" in line for line in lines))
-        self.assertTrue(any("对比 → 实现" in line for line in lines))
+        self.assertTrue(any("Phase fallback" in line for line in lines))
+        self.assertTrue(any("Compare → Implement" in line for line in lines))
 
     def test_ascii_fallback_replaces_the_check_marks(self) -> None:
         stream = io.StringIO()
@@ -326,7 +326,7 @@ class LiveProgressTests(unittest.TestCase):
 
         text = stream.getvalue()
         self.assertNotIn("\u2714", text)
-        self.assertIn("成功", text)
+        self.assertIn("success", text)
         self.assertIn(" ok", text)
 
     def test_start_ignores_history_from_earlier_runs(self) -> None:
@@ -359,9 +359,9 @@ class LiveProgressTests(unittest.TestCase):
         live.close(ok=True)
 
         text = stream.getvalue()
-        self.assertIn("方案 | 3/10", text)
-        self.assertNotIn("分析 | 1/10", text)
-        self.assertNotIn("基线 | 2/10", text)
+        self.assertIn("Plan | 3/10", text)
+        self.assertNotIn("Analyze | 1/10", text)
+        self.assertNotIn("Baseline | 2/10", text)
 
     def test_stream_errors_never_propagate(self) -> None:
         class BrokenStream:

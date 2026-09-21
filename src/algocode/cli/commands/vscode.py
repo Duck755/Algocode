@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 from importlib import resources
 from pathlib import Path
 from typing import Annotated
@@ -12,6 +11,7 @@ from typing import Annotated
 import typer
 
 from algocode.cli.output import JsonOption, NoColorOption, QuietOption, VerboseOption, emit_result
+from algocode.process_output import run_text
 
 vscode_app = typer.Typer(
     name="vscode",
@@ -58,16 +58,19 @@ def _install_with_code(code_executable: str, vsix_path: Path, *, force: bool) ->
     command = [code_executable, "--install-extension", str(vsix_path)]
     if force:
         command.append("--force")
-    completed = subprocess.run(
+    completed = run_text(
         command,
         capture_output=True,
-        text=True,
         check=False,
         shell=os.name == "nt" and code_executable.lower().endswith((".cmd", ".bat")),
     )
-    output = "\n".join(part.strip() for part in (completed.stdout, completed.stderr) if part.strip())
+    output = "\n".join(
+        part.strip() for part in (completed.stdout, completed.stderr) if part.strip()
+    )
     if completed.returncode != 0:
-        raise RuntimeError(output or f"VS Code extension installation failed ({completed.returncode})")
+        raise RuntimeError(
+            output or f"VS Code extension installation failed ({completed.returncode})"
+        )
     return output
 
 

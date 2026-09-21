@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 import time
 from datetime import UTC, datetime
@@ -13,6 +12,7 @@ from uuid import uuid4
 from algocode.acceptance.matrix import load_requirements, validate_requirement_paths
 from algocode.acceptance.probe import ProbeMetrics, run_release_probe
 from algocode.acceptance.types import AcceptanceReport, GateCheck
+from algocode.process_output import run_text
 
 SUITE_GROUPS: dict[str, tuple[str, ...]] = {
     "unit": ("tests/unit",),
@@ -134,12 +134,11 @@ class AcceptanceService:
         checks: list[GateCheck] = []
         for name, arguments in SUITE_GROUPS.items():
             started = time.perf_counter()
-            completed = subprocess.run(
+            completed = run_text(
                 (sys.executable, "-m", "pytest", "-q", *arguments),
                 cwd=self.root,
                 check=False,
                 capture_output=True,
-                text=True,
                 timeout=1800,
             )
             output = f"{completed.stdout}\n{completed.stderr}".strip()

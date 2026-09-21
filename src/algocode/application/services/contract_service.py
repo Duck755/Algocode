@@ -659,9 +659,9 @@ def benchmark_harness_issue(source: str) -> str | None:
 
     for loop in (node for node in ast.walk(tree) if isinstance(node, (ast.For, ast.While))):
         loop_targets = _loop_target_names(loop)
-        for call in (node for node in ast.walk(loop) if isinstance(node, ast.Call)):
+        for call in _repeated_loop_calls(loop):
             name = _call_name(call)
-            if not name or name in _BENCHMARK_HARNESS_ALLOWED_CONSTANT_CALLS:
+            if not name or _is_allowed_benchmark_constant_call(name):
                 continue
             if _call_depends_on_loop_target(call, loop_targets):
                 continue
@@ -694,11 +694,41 @@ _BENCHMARK_HARNESS_ALLOWED_CONSTANT_CALLS = {
     "time.perf_counter",
 }
 
+_BENCHMARK_HARNESS_STATEFUL_RANDOM_METHODS = {
+    "choice",
+    "choices",
+    "getrandbits",
+    "randbytes",
+    "randint",
+    "randrange",
+    "random",
+    "sample",
+    "shuffle",
+    "uniform",
+}
+
 
 def _loop_target_names(loop: ast.For | ast.While) -> set[str]:
     if isinstance(loop, ast.For):
         return {node.id for node in ast.walk(loop.target) if isinstance(node, ast.Name)}
     return set()
+
+
+def _repeated_loop_calls(loop: ast.For | ast.While):
+    statements: list[ast.AST] = [*loop.body]
+    if isinstance(loop, ast.While):
+        statements.insert(0, loop.test)
+    for statement in statements:
+        yield from _calls_outside_nested_loops(statement)
+
+
+def _calls_outside_nested_loops(node: ast.AST):
+    if isinstance(node, (ast.For, ast.While)):
+        return
+    if isinstance(node, ast.Call):
+        yield node
+    for child in ast.iter_child_nodes(node):
+        yield from _calls_outside_nested_loops(child)
 
 
 def _call_name(call: ast.Call) -> str | None:
@@ -708,6 +738,13 @@ def _call_name(call: ast.Call) -> str | None:
         prefix = call.func.value.id if isinstance(call.func.value, ast.Name) else None
         return f"{prefix}.{call.func.attr}" if prefix else call.func.attr
     return None
+
+
+def _is_allowed_benchmark_constant_call(name: str) -> bool:
+    if name in _BENCHMARK_HARNESS_ALLOWED_CONSTANT_CALLS:
+        return True
+    method = name.rsplit(".", 1)[-1]
+    return method in _BENCHMARK_HARNESS_STATEFUL_RANDOM_METHODS
 
 
 def _call_depends_on_loop_target(call: ast.Call, targets: set[str]) -> bool:

@@ -27,39 +27,39 @@ from algocode.domain.events import EventEnvelope, EventType
 TITLE = "algocode"
 
 PHASE_LABELS: Mapping[str, str] = {
-    "create": "建任务",
-    "analyze": "分析",
-    "baseline": "基线",
-    "plan": "方案",
-    "generate_candidate": "建候选",
-    "implement": "实现",
-    "verify": "校验",
-    "benchmark": "基准",
-    "compare": "对比",
-    "decide": "决策",
-    "report": "报告",
+    "create": "Create Task",
+    "analyze": "Analyze",
+    "baseline": "Baseline",
+    "plan": "Plan",
+    "generate_candidate": "Generate Candidate",
+    "implement": "Implement",
+    "verify": "Verify",
+    "benchmark": "Benchmark",
+    "compare": "Compare",
+    "decide": "Decide",
+    "report": "Report",
 }
 
 TOOL_LABELS: Mapping[str, str] = {
-    "list_files": "列目录",
-    "read_file": "读取文件",
-    "read_required_files": "读取必需文件",
-    "write_file": "写入文件",
-    "edit_file": "编辑文件",
-    "search_code": "搜索代码",
-    "read_resource": "读取资源",
-    "get_task_state": "读取任务状态",
-    "get_candidate_diff": "查看候选改动",
-    "create_candidate": "创建候选",
-    "apply_patch": "应用补丁",
-    "build": "编译",
-    "run_correctness": "运行正确性测试",
-    "run_candidate_check": "候选自检",
-    "run_benchmark": "运行基准",
-    "run_contract": "运行契约测试",
-    "submit_phase_result": "提交阶段结果",
-    "submit_optimization_plan": "提交优化方案",
-    "run_shell": "执行命令",
+    "list_files": "List Files",
+    "read_file": "Read File",
+    "read_required_files": "Read Required Files",
+    "write_file": "Write File",
+    "edit_file": "Edit File",
+    "search_code": "Search Code",
+    "read_resource": "Read Resource",
+    "get_task_state": "Get Task State",
+    "get_candidate_diff": "Get Candidate Diff",
+    "create_candidate": "Create Candidate",
+    "apply_patch": "Apply Patch",
+    "build": "Build",
+    "run_correctness": "Run Correctness",
+    "run_candidate_check": "Run Candidate Check",
+    "run_benchmark": "Run Benchmark",
+    "run_contract": "Run Contract",
+    "submit_phase_result": "Submit Phase Result",
+    "submit_optimization_plan": "Submit Optimization Plan",
+    "run_shell": "Run Shell",
 }
 
 OPTIMIZE_PHASES: tuple[str, ...] = (
@@ -87,22 +87,22 @@ _TOOL_OK_STATUSES = {"success", "ok", "completed", "passed"}
 
 
 def phase_label(name: str | None) -> str:
-    """Chinese label for a task phase name."""
+    """English label for a task phase name."""
     if not name:
-        return "未知阶段"
+        return "Unknown Phase"
     return PHASE_LABELS.get(name, name)
 
 
 def tool_label(name: str | None) -> str:
-    """Chinese label for a tool name."""
+    """English label for a tool name."""
     if not name:
-        return "工具"
+        return "Tool"
     return TOOL_LABELS.get(name, name)
 
 
 def tool_status_label(status: str | None) -> str:
-    """Chinese label for a tool result status."""
-    return "成功" if (status or "").lower() in _TOOL_OK_STATUSES else "失败"
+    """English label for a tool result status."""
+    return "success" if (status or "").lower() in _TOOL_OK_STATUSES else "failed"
 
 
 def tool_succeeded(status: str | None) -> bool:
@@ -305,7 +305,7 @@ def _phase_parts(
     if ordinal is not None:
         parts.append(f"{ordinal[0]}/{ordinal[1]}")
     if turn is not None:
-        parts.append(f"第 {turn} 轮")
+        parts.append(f"Round {turn}")
     return parts
 
 
@@ -330,10 +330,10 @@ def tick_line(
     active = snapshot.active
     if active is not None:
         seconds = max(0.0, (current - active.started_at).total_seconds())
-        parts.append(f"运行中 {tool_label(active.name)} ({format_duration(seconds)})")
+        parts.append(f"Running {tool_label(active.name)} ({format_duration(seconds)})")
     else:
-        parts.append("思考中")
-    parts.append(f"工具 {stat.tool_calls if stat else 0}")
+        parts.append("Thinking")
+    parts.append(f"Tools {stat.tool_calls if stat else 0}")
     elapsed = elapsed_since(stat.started_at if stat else None, current)
     if elapsed is not None:
         parts.append(format_duration(elapsed))
@@ -351,7 +351,7 @@ def action_line(
 
     parts = _phase_parts(action.phase, action.turn, phases)
     parts.append(f"{tool_label(action.name)} {tool_status_label(action.status)}")
-    parts.append(f"工具 {action.ordinal}")
+    parts.append(f"Tool {action.ordinal}")
     seconds = action.seconds
     if seconds is not None:
         parts.append(format_duration(seconds))
@@ -360,7 +360,7 @@ def action_line(
 
 
 def _short_reason(reason: str, limit: int = 160) -> str:
-    text = " ".join(reason.split()) or "继续优化当前候选"
+    text = " ".join(reason.split()) or "Continue optimizing the current candidate"
     return text if len(text) <= limit else f"{text[: limit - 1]}…"
 
 
@@ -373,14 +373,14 @@ def transition_line(
     """A frozen line explaining why Runtime moved back to an earlier phase."""
 
     parts = [
-        "阶段回退",
+        "Phase fallback",
         f"{phase_label(transition.from_phase)} → {phase_label(transition.to_phase)}",
-        f"原因：{_short_reason(transition.reason)}",
+        f"Reason: {_short_reason(transition.reason)}",
     ]
     if transition.candidate_id:
-        parts.append(f"候选 {transition.candidate_id}")
+        parts.append(f"Candidate {transition.candidate_id}")
     if transition.iteration > 0:
-        parts.append(f"第 {transition.iteration} 次")
+        parts.append(f"Iteration {transition.iteration}")
     text = _join(parts, title=title)
     return f"{text} {marker}" if marker else text
 
@@ -396,9 +396,7 @@ def phase_line(
     """A frozen log line summarising one finished phase."""
 
     parts = _phase_parts(stat.name, None, phases)
-    parts.append(
-        f"完成 · {stat.turn or 0} 轮推理 · {stat.tool_calls} 次工具调用"
-    )
+    parts.append(f"Completed · {stat.turn or 0} reasoning turns · {stat.tool_calls} tool calls")
     if elapsed is not None:
         parts.append(format_duration(elapsed))
     text = _join(parts, title=title)

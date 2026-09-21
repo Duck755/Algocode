@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import statistics
-import subprocess
 import tempfile
 import time
 from collections.abc import Callable
@@ -18,6 +17,7 @@ from algocode.domain.events import EventType
 from algocode.domain.model import CandidateStatus, CorrectnessStatus, TaskPhase, TaskStatus
 from algocode.eval.provider import PhaseScriptedProvider
 from algocode.eval.types import EvalTask, EvalTaskResult, ExpectedBehavior
+from algocode.process_output import run_text
 from algocode.providers.fake import DeterministicFakeProvider
 from algocode.providers.types import ModelRef
 from algocode.runtime.agent import AgentRunResult, AgentRuntime
@@ -275,7 +275,7 @@ def _create_repository(root: Path, files: dict[str, str]) -> None:
 
 
 def _run(root: Path, *command: str) -> None:
-    subprocess.run(command, cwd=root, check=True, capture_output=True, text=True)
+    run_text(command, cwd=root, check=True, capture_output=True)
 
 
 def _metrics(

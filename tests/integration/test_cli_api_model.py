@@ -28,18 +28,23 @@ class CliApiModelTestTests(unittest.TestCase):
             previous = Path.cwd()
             try:
                 os.chdir(root)
-                with patch(
-                    "algocode.security.credentials.default_data_dir",
-                    return_value=data_dir,
-                ), patch(
-                    "algocode.config.global_file.default_data_dir",
-                    return_value=data_dir,
-                ), patch(
-                    "algocode.cli.commands.model.default_data_dir",
-                    return_value=data_dir,
-                ), patch(
-                    "algocode.cli.commands.model.list_models",
-                    return_value=[],
+                with (
+                    patch(
+                        "algocode.security.credentials.default_data_dir",
+                        return_value=data_dir,
+                    ),
+                    patch(
+                        "algocode.config.global_file.default_data_dir",
+                        return_value=data_dir,
+                    ),
+                    patch(
+                        "algocode.cli.commands.model.default_data_dir",
+                        return_value=data_dir,
+                    ),
+                    patch(
+                        "algocode.cli.commands.model.list_models",
+                        return_value=[],
+                    ),
                 ):
                     result = self.runner.invoke(
                         app,
@@ -101,18 +106,23 @@ defaults:
             previous = Path.cwd()
             try:
                 os.chdir(root)
-                with patch(
-                    "algocode.cli.commands.model.default_data_dir",
-                    return_value=data_dir,
-                ), patch(
-                    "algocode.config.global_file.default_data_dir",
-                    return_value=data_dir,
-                ), patch(
-                    "algocode.cli.commands.model.resolve_api_key",
-                    return_value="mock-key",
-                ), patch(
-                    "algocode.cli.commands.model.list_models",
-                    return_value=["new-model", "old"],
+                with (
+                    patch(
+                        "algocode.cli.commands.model.default_data_dir",
+                        return_value=data_dir,
+                    ),
+                    patch(
+                        "algocode.config.global_file.default_data_dir",
+                        return_value=data_dir,
+                    ),
+                    patch(
+                        "algocode.cli.commands.model.resolve_api_key",
+                        return_value="mock-key",
+                    ),
+                    patch(
+                        "algocode.cli.commands.model.list_models",
+                        return_value=["new-model", "old"],
+                    ),
                 ):
                     result = self.runner.invoke(app, ["model"], input="1\n")
             finally:
@@ -166,12 +176,15 @@ defaults:
                 previous = Path.cwd()
                 try:
                     os.chdir(root)
-                    with patch(
-                        "algocode.security.credentials.default_data_dir",
-                        return_value=data_dir,
-                    ), patch(
-                        "algocode.bootstrap.default_data_dir",
-                        return_value=data_dir,
+                    with (
+                        patch(
+                            "algocode.security.credentials.default_data_dir",
+                            return_value=data_dir,
+                        ),
+                        patch(
+                            "algocode.bootstrap.default_data_dir",
+                            return_value=data_dir,
+                        ),
                     ):
                         result = self.runner.invoke(app, ["test", "--json"])
                 finally:
@@ -183,7 +196,7 @@ defaults:
             self.assertEqual(payload["model"], "mock-test-model")
             request = server.requests[0]
             self.assertIn("mock-test-model", request["messages"][0]["content"])
-            self.assertEqual(request["messages"][1]["content"], "你好，你是什么模型")
+            self.assertEqual(request["messages"][1]["content"], "Hello. What model are you?")
 
 
 if __name__ == "__main__":

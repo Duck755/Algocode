@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import {
   Activity,
   ArrowDown,
@@ -44,19 +44,39 @@ import {
   Zap,
 } from 'lucide-react'
 import DocsPage from './Docs'
+import { siteCopy } from './siteCopy'
 
-const GH_URL = 'https://github.com/Duck755/Algocode'
+const GH_URL = 'https://github.com/acfoundry/Algocode'
 const PYPI_URL = 'https://pypi.org/project/algocode-agent/'
-const DOCS_PATH = '#/docs/getting-started/installation'
+const DEFAULT_DOC_PATH = 'getting-started/installation'
+const LANGUAGE_STORAGE_KEY = 'algocode-site-language'
 
-const navItems = [
-  { label: '能力', href: '#capabilities' },
-  { label: '特性', href: '#features' },
-  { label: '快速开始', href: '#quickstart' },
-  { label: '架构', href: '#architecture' },
-  { label: '使用形态', href: '#usage' },
-  { label: '文档', href: DOCS_PATH },
-]
+function getPreferredLanguage() {
+  if (typeof window === 'undefined') return 'zh'
+  const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY)
+  if (stored === 'zh' || stored === 'en') return stored
+  return window.navigator.language?.toLowerCase().startsWith('zh') ? 'zh' : 'en'
+}
+
+function languageFromHash(hash) {
+  if (hash.startsWith('#/docs/en')) return 'en'
+  if (hash.startsWith('#/docs/zh')) return 'zh'
+  if (hash.startsWith('#/docs')) return 'zh'
+  return null
+}
+
+function docsPathFromHash(hash) {
+  const raw = String(hash || '')
+    .replace(/^#\/docs\/(?:zh|en)\/?/, '')
+    .replace(/^#\/docs\/?/, '')
+    .split('?')[0]
+    .replace(/\/+$/, '')
+  return raw || DEFAULT_DOC_PATH
+}
+
+function docsPath(lang, path = DEFAULT_DOC_PATH) {
+  return `#/docs/${lang}/${path}`
+}
 
 function Wordmark() {
   return <span className="wordmark">Algocode</span>
@@ -243,16 +263,11 @@ function SectionHeading({ eyebrow, title, description }) {
   )
 }
 
-function Navbar() {
+function Navbar({ lang, copy, onLanguageChange }) {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [lang, setLang] = useState('zh')
   const [theme, setTheme] = useState('dark')
-
-  const navLabels = {
-    zh: ['能力', '特性', '快速开始', '架构', '使用形态', '文档'],
-    en: ['Capabilities', 'Features', 'Quick Start', 'Architecture', 'Usage', 'Docs'],
-  }
+  const navItems = [...copy.nav.items, { label: copy.nav.docsLabel, href: docsPath(lang) }]
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 18)
@@ -265,24 +280,18 @@ function Navbar() {
     document.documentElement.dataset.theme = theme
   }, [theme])
 
-  useEffect(() => {
-    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en'
-  }, [lang])
-
-  const installLabel = lang === 'zh' ? '安装' : 'Install'
-
   return (
     <header className={`site-nav ${scrolled ? 'is-scrolled' : ''}`}>
       <div className="container nav-inner">
-        <a className="brand" href="#top" aria-label="Algocode 首页">
+        <a className="brand" href="#top" aria-label={copy.nav.homeAria}>
           <img src="./algocode_icon.png" alt="" width="30" height="30" />
           <span><Wordmark /></span>
         </a>
 
-        <nav className={`nav-links ${menuOpen ? 'is-open' : ''}`} aria-label={lang === 'zh' ? '主导航' : 'Main navigation'}>
-          {navItems.map((item, index) => (
+        <nav className={`nav-links ${menuOpen ? 'is-open' : ''}`} aria-label={copy.nav.mainAria}>
+          {navItems.map((item) => (
             <a key={item.href} href={item.href} onClick={() => setMenuOpen(false)}>
-              {navLabels[lang][index]}
+              {item.label}
             </a>
           ))}
         </nav>
@@ -299,14 +308,14 @@ function Navbar() {
           </a>
 
           <div className="lang-switch" aria-label="Language">
-            <button type="button" className={lang === 'zh' ? 'is-active' : ''} onClick={() => setLang('zh')}>中</button>
-            <button type="button" className={lang === 'en' ? 'is-active' : ''} onClick={() => setLang('en')}>EN</button>
+            <button type="button" className={lang === 'zh' ? 'is-active' : ''} onClick={() => onLanguageChange('zh')}>中</button>
+            <button type="button" className={lang === 'en' ? 'is-active' : ''} onClick={() => onLanguageChange('en')}>EN</button>
           </div>
 
           <button
             type="button"
             className="icon-button theme-toggle"
-            aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+            aria-label={theme === 'dark' ? copy.nav.themeToLight : copy.nav.themeToDark}
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
@@ -314,13 +323,13 @@ function Navbar() {
 
           <a className="button nav-install" href="#install">
             <Download size={16} />
-            {installLabel}
+            {copy.nav.install}
           </a>
 
           <button
             type="button"
             className="icon-button menu-button"
-            aria-label={menuOpen ? '关闭菜单' : '打开菜单'}
+            aria-label={menuOpen ? copy.nav.closeMenu : copy.nav.openMenu}
             onClick={() => setMenuOpen((value) => !value)}
           >
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
@@ -330,7 +339,7 @@ function Navbar() {
     </header>
   )
 }
-function TerminalWindow({ title, copyText, children, className = '' }) {
+function TerminalWindow({ title, copyText, children, className = '', labels }) {
   const [copied, setCopied] = useState(false)
 
   const copy = async () => {
@@ -352,9 +361,9 @@ function TerminalWindow({ title, copyText, children, className = '' }) {
           <span />
         </div>
         <div className="terminal-title">{title}</div>
-        <button type="button" className="terminal-copy" onClick={copy} aria-label="复制命令">
+        <button type="button" className="terminal-copy" onClick={copy} aria-label={labels?.copyAria || 'Copy command'}>
           {copied ? <Check size={14} /> : <Clipboard size={14} />}
-          <span>{copied ? '已复制' : '复制'}</span>
+          <span>{copied ? labels?.copied || 'Copied' : labels?.copy || 'Copy'}</span>
         </button>
       </div>
       <div className="terminal-content">{children}</div>
@@ -362,12 +371,12 @@ function TerminalWindow({ title, copyText, children, className = '' }) {
   )
 }
 
-function Hero() {
+function Hero({ copy }) {
   const installText = [
-    'algocode doctor  # 检查配置',
-    'algocode api  # 配置模型',
-    'algocode init  # 建立契约',
-    'algocode optimize  # 开始优化',
+    `algocode doctor  ${copy.hero.comments[0]}`,
+    `algocode api  ${copy.hero.comments[1]}`,
+    `algocode init  ${copy.hero.comments[2]}`,
+    `algocode optimize  ${copy.hero.comments[3]}`,
     '',
     'Task: task_8f2a10',
     'Status: completed',
@@ -384,24 +393,24 @@ function Hero() {
         <Reveal className="hero-copy">
           <div className="hero-kicker">
             <CircleDot size={14} />
-            <span>Verifiable Algorithm Optimization Agent</span>
+            <span>{copy.hero.kicker}</span>
           </div>
 
           <h1 className="wordmark">Algocode</h1>
           <p className="hero-lede">
-            面向 C++ / Python 的可验证算法优化 Agent。
+            {copy.hero.lede[0]}
             <br />
-            先建立行为契约，再在隔离环境中尝试优化，最后用真实证据决定是否应用。
+            {copy.hero.lede[1]}
           </p>
 
           <div className="hero-actions">
             <a className="button button-primary" href="#quickstart">
-              开始使用
+              {copy.hero.primary}
               <ArrowDown size={16} />
             </a>
             <a className="button button-ghost" href={GH_URL} target="_blank" rel="noreferrer">
               <Github size={17} />
-              查看 GitHub
+              {copy.hero.github}
             </a>
           </div>
 
@@ -422,26 +431,26 @@ function Hero() {
         </Reveal>
 
         <Reveal delay={120} className="hero-terminal">
-          <TerminalWindow title="algocode — first optimization" copyText={installText}>
+          <TerminalWindow title={copy.hero.terminalTitle} copyText={installText} labels={copy.terminal}>
             <div className="terminal-line">
               <span className="prompt">$</span>
               <span className="cmd">algocode doctor</span>
-              <span className="comment"># 检查配置</span>
+              <span className="comment">{copy.hero.comments[0]}</span>
             </div>
             <div className="terminal-line">
               <span className="prompt">$</span>
               <span className="cmd">algocode api</span>
-              <span className="comment"># 配置模型</span>
+              <span className="comment">{copy.hero.comments[1]}</span>
             </div>
             <div className="terminal-line">
               <span className="prompt">$</span>
               <span className="cmd">algocode init</span>
-              <span className="comment"># 建立契约</span>
+              <span className="comment">{copy.hero.comments[2]}</span>
             </div>
             <div className="terminal-line">
               <span className="prompt">$</span>
               <span className="cmd">algocode optimize</span>
-              <span className="comment"># 开始优化</span>
+              <span className="comment">{copy.hero.comments[3]}</span>
             </div>
             <div className="terminal-line terminal-line-spacer" />
             <div className="terminal-line">
@@ -474,7 +483,7 @@ function Hero() {
   )
 }
 
-function Install() {
+function Install({ copy, lang }) {
   const installText = 'pip install algocode-agent'
 
   return (
@@ -484,10 +493,10 @@ function Install() {
           <div className="install-copy">
             <div className="eyebrow">
               <span className="eyebrow-mark" />
-              Installation
+              {copy.install.eyebrow}
             </div>
-            <h2>安装 <Wordmark /></h2>
-            <p>一行命令完成安装，随后配置模型、运行环境检查，就可以开始第一次优化。</p>
+            <h2>{copy.install.title} <Wordmark /></h2>
+            <p>{copy.install.description}</p>
             <div className="requirement-row">
               <span>Python 3.11+</span>
               <span>PyPI</span>
@@ -495,7 +504,7 @@ function Install() {
           </div>
 
           <Reveal delay={90} className="install-action">
-            <TerminalWindow title="pip install — algocode" copyText={installText} className="install-terminal">
+            <TerminalWindow title="pip install — algocode" copyText={installText} className="install-terminal" labels={copy.terminal}>
               <div className="terminal-line">
                 <span className="prompt">$</span>
                 <span className="cmd">pip install algocode-agent</span>
@@ -503,13 +512,13 @@ function Install() {
             </TerminalWindow>
 
             <div className="install-buttons">
-              <a className="button button-ghost" href={DOCS_PATH}>
+              <a className="button button-ghost" href={docsPath(lang)}>
                 <BookOpen size={16} />
-                阅读文档
+                {copy.install.docs}
               </a>
               <a className="button button-ghost" href={GH_URL} target="_blank" rel="noreferrer">
                 <Star size={16} />
-                去 GitHub 上 Star
+                {copy.install.star}
               </a>
             </div>
           </Reveal>
@@ -519,49 +528,24 @@ function Install() {
   )
 }
 
-const capabilities = [
-  {
-    icon: FileCheck2,
-    index: '01',
-    title: '行为契约优先',
-    text: '优化前先锁定公开 API、输入输出、配置字段、错误语义与边界行为，性能不能以破坏语义为代价。',
-  },
-  {
-    icon: GitBranch,
-    index: '02',
-    title: '隔离候选生成',
-    text: 'CLI 在 Git Worktree 中试错，VS Code 在临时影子工作区中运行，原项目不会被直接修改。',
-  },
-  {
-    icon: Gauge,
-    index: '03',
-    title: '证据驱动决策',
-    text: 'Correctness、Contract、Benchmark 三类结果全部持久化，接受或拒绝基于真实证据，而非模型自述。',
-  },
-  {
-    icon: Undo2,
-    index: '04',
-    title: '可回滚交付',
-    text: 'Review、Accept、Apply 逐步分离。应用前看 Diff 与报告，应用后仍可通过 Manifest 回滚。',
-  },
-]
+const capabilityIcons = [FileCheck2, GitBranch, Gauge, Undo2]
 
-function Capabilities() {
+function Capabilities({ copy }) {
   return (
     <section className="section section-capabilities" id="capabilities">
       <div className="container">
         <SectionHeading
-          eyebrow="What it does"
-          title="不是黑盒改代码，而是可验证地推进"
-          description={<>把可运行项目交给 <Wordmark />，它会在有门控的阶段中完成分析、基线、候选生成、验证、基准测试与决策。</>}
+          eyebrow={copy.capabilities.eyebrow}
+          title={copy.capabilities.title}
+          description={<>{copy.capabilities.description}</>}
         />
         <div className="capability-grid">
-          {capabilities.map((item, index) => {
-            const Icon = item.icon
+          {copy.capabilities.items.map((item, index) => {
+            const Icon = capabilityIcons[index]
             return (
               <Reveal key={item.title} delay={index * 70} className="capability-card">
                 <div className="capability-topline">
-                  <span className="capability-index">{item.index}</span>
+                  <span className="capability-index">{String(index + 1).padStart(2, '0')}</span>
                   <Icon size={25} strokeWidth={1.45} />
                 </div>
                 <h3>{item.title}</h3>
@@ -575,71 +559,20 @@ function Capabilities() {
   )
 }
 
-const features = [
-  {
-    icon: ShieldCheck,
-    title: '契约优先',
-    text: '先确定行为语义，再进入优化阶段，避免“变快了但结果错了”。',
-  },
-  {
-    icon: GitCompareArrows,
-    title: '证据驱动',
-    text: '正确性、契约、性能三类结果完整保存，决策有据可查。',
-  },
-  {
-    icon: Boxes,
-    title: '隔离候选',
-    text: 'Git Worktree 与影子工作区让候选始终在独立副本中演进。',
-  },
-  {
-    icon: LockKeyhole,
-    title: '人工可控',
-    text: 'Diff、Review、Apply 分离，先看证据，再决定是否应用。',
-  },
-  {
-    icon: ScrollText,
-    title: '全程可审计',
-    text: '模型调用、工具调用、阶段结果与候选快照均被持久化。',
-  },
-  {
-    icon: Activity,
-    title: '阶段进度可见',
-    text: '终端实时显示阶段、序号、轮次、当前工具与耗时。',
-  },
-  {
-    icon: Repeat2,
-    title: '失败可重试',
-    text: '负收益、证据不足或阶段阻塞时，可基于历史重新规划方向。',
-  },
-  {
-    icon: Network,
-    title: '多模型 Provider',
-    text: '支持 OpenAI、DeepSeek、Kimi、GLM、Claude 与任意 OpenAI-compatible 服务。',
-  },
-  {
-    icon: Server,
-    title: '本地优先',
-    text: '默认本机执行，Docker / WSL2 仅作为可选隔离增强。',
-  },
-  {
-    icon: Monitor,
-    title: 'CLI + VS Code',
-    text: '终端自动化与编辑器日常操作共享同一套验证与存储层。',
-  },
-]
+const featureIcons = [ShieldCheck, GitCompareArrows, Boxes, LockKeyhole, ScrollText, Activity, Repeat2, Network, Server, Monitor]
 
-function Features() {
+function Features({ copy }) {
   return (
     <section className="section section-features" id="features">
       <div className="container">
         <SectionHeading
-          eyebrow="Capabilities"
-          title="围绕证据建立的安全边界"
-          description={<><Wordmark /> 把优化拆成可观察、可验证、可回退的阶段，每一步都有明确的前置条件和产出。</>}
+          eyebrow={copy.features.eyebrow}
+          title={copy.features.title}
+          description={<>{copy.features.description}</>}
         />
         <div className="feature-grid">
-          {features.map((item, index) => {
-            const Icon = item.icon
+          {copy.features.items.map((item, index) => {
+            const Icon = featureIcons[index]
             return (
               <Reveal key={item.title} delay={(index % 5) * 55} className="feature-card">
                 <Icon size={21} strokeWidth={1.5} />
@@ -654,48 +587,22 @@ function Features() {
   )
 }
 
-const quickStartSteps = [
-  {
-    icon: Play,
-    title: '安装',
-    text: '从 PyPI 安装 algocode-agent，或使用源码开发模式。',
-  },
-  {
-    icon: KeyRound,
-    title: '配置模型',
-    text: '选择 Provider、Base URL、模型 ID 与 API Key，凭据保存在本机。',
-  },
-  {
-    icon: Search,
-    title: '环境检查',
-    text: '运行 doctor 确认 Git、Python、编译器与入口文件条件。',
-  },
-  {
-    icon: Sparkles,
-    title: '发起优化',
-    text: 'init 建立契约与基线，optimize 启动完整的候选优化流程。',
-  },
-  {
-    icon: BadgeCheck,
-    title: '审阅与应用',
-    text: '查看 review、diff 与 report，确认后再 apply，必要时 rollback。',
-  },
-]
+const quickStartIcons = [Play, KeyRound, Search, Sparkles, BadgeCheck]
 
-function QuickStart() {
+function QuickStart({ copy }) {
   const copyText = [
-    '# 1. Install Algocode',
+    copy.quickStart.terminal.comments[0],
     'pip install algocode-agent',
     '',
-    '# 2. Configure provider and verify environment',
+    copy.quickStart.terminal.comments[1],
     'algocode api',
     'algocode doctor',
     '',
-    '# 3. Init contract and optimize',
+    copy.quickStart.terminal.comments[2],
     'algocode init',
     'algocode optimize',
     '',
-    '# 4. Review and apply',
+    copy.quickStart.terminal.comments[3],
     'algocode review',
     'algocode diff',
     'algocode apply <task-id> <candidate-id>',
@@ -707,13 +614,13 @@ function QuickStart() {
         <div className="quickstart-grid">
           <div className="quickstart-copy">
             <SectionHeading
-              eyebrow="Quick start"
-              title="五分钟完成第一次优化"
-              description="安装后只需几条命令，就能从契约建立走到候选审阅与应用。"
+              eyebrow={copy.quickStart.eyebrow}
+              title={copy.quickStart.title}
+              description={copy.quickStart.description}
             />
             <div className="step-list">
-              {quickStartSteps.map((step, index) => {
-                const Icon = step.icon
+              {copy.quickStart.steps.map((step, index) => {
+                const Icon = quickStartIcons[index]
                 return (
                   <Reveal key={step.title} delay={index * 60} className="step-item">
                     <div className="step-icon">
@@ -729,69 +636,69 @@ function QuickStart() {
               })}
             </div>
             <Reveal className="requirement-row">
-              <span>Python 3.11+</span>
-              <span>Git</span>
-              <span>C++ 编译器（优化 C++ 项目时）</span>
+              {copy.quickStart.requirements.map((requirement) => (
+                <span key={requirement}>{requirement}</span>
+              ))}
             </Reveal>
           </div>
 
           <Reveal delay={100} className="quickstart-terminal">
-            <TerminalWindow title="terminal — algocode" copyText={copyText}>
+            <TerminalWindow title={copy.quickStart.terminal.title} copyText={copyText} labels={copy.terminal}>
               <div className="terminal-line">
-                <span className="comment"># 1. Install Algocode</span>
+                <span className="comment">{copy.quickStart.terminal.comments[0]}</span>
               </div>
               <div className="terminal-line">
                 <span className="prompt">$</span>
                 <span className="cmd">pip install algocode-agent</span>
               </div>
               <div className="terminal-line">
-                <span className="success">[OK] Successfully installed algocode-agent-0.1.2</span>
+                <span className="success">{copy.quickStart.terminal.installOk}</span>
               </div>
               <div className="terminal-line-spacer" />
               <div className="terminal-line">
-                <span className="comment"># 2. Configure provider and verify environment</span>
+                <span className="comment">{copy.quickStart.terminal.comments[1]}</span>
               </div>
               <div className="terminal-line">
                 <span className="prompt">$</span>
                 <span className="cmd">algocode api</span>
               </div>
               <div className="terminal-line">
-                <span className="success">[OK] provider: openai / api key stored locally</span>
+                <span className="success">{copy.quickStart.terminal.providerOk}</span>
               </div>
               <div className="terminal-line">
                 <span className="prompt">$</span>
                 <span className="cmd">algocode doctor</span>
               </div>
               <div className="terminal-line">
-                <span className="success">[OK] python 3.12 / git / C++ toolchain ready</span>
+                <span className="success">{copy.quickStart.terminal.doctorOk}</span>
               </div>
               <div className="terminal-line-spacer" />
               <div className="terminal-line">
-                <span className="comment"># 3. Init contract and optimize</span>
+                <span className="comment">{copy.quickStart.terminal.comments[2]}</span>
               </div>
               <div className="terminal-line">
                 <span className="prompt">$</span>
                 <span className="cmd">algocode init</span>
               </div>
               <div className="terminal-line">
-                <span className="success">[OK] .algocode/contract.toml created - baseline ready</span>
+                <span className="success">{copy.quickStart.terminal.contractOk}</span>
               </div>
               <div className="terminal-line">
                 <span className="prompt">$</span>
                 <span className="cmd">algocode optimize</span>
               </div>
               <div className="terminal-line">
-                <span className="metric">[ALGO] Status: completed / Correctness: passed</span>
+                <span className="metric">{copy.quickStart.terminal.optimizeStatus}</span>
               </div>
               <div className="terminal-line">
-                <span className="metric">[ALGO] Baseline 0.7594s -&gt; Candidate 0.5357s</span>
+                <span className="metric">{copy.quickStart.terminal.benchmark}</span>
               </div>
               <div className="terminal-line">
-                <span className="metric">[ALGO] Improvement: 29.46%</span>
+                <span className="metric">{copy.quickStart.terminal.improvement}</span>
               </div>
               <div className="terminal-line-spacer" />
               <div className="terminal-line">
-                <span className="comment"># 4. Review and apply</span>
+                <span className="comment">{copy.quickStart.terminal.comments[3]}</span>
               </div>
               <div className="terminal-line">
                 <span className="prompt">$</span>
@@ -806,7 +713,7 @@ function QuickStart() {
                 <span className="cmd">algocode apply &lt;task-id&gt; &lt;candidate-id&gt;</span>
               </div>
               <div className="terminal-line">
-                <span className="success">[OK] candidate applied / rollback available</span>
+                <span className="success">{copy.quickStart.terminal.applyOk}</span>
               </div>
             </TerminalWindow>
           </Reveal>
@@ -818,21 +725,18 @@ function QuickStart() {
 
 const architectureLayers = [
   {
-    label: '入口层',
     items: [
       { icon: Terminal, name: 'CLI Commands' },
       { icon: Monitor, name: 'VS Code Extension' },
     ],
   },
   {
-    label: '应用层',
     items: [
       { icon: Layers3, name: 'Application Services' },
       { icon: Workflow, name: 'Domain' },
     ],
   },
   {
-    label: '运行时层',
     items: [
       { icon: Cpu, name: 'Agent Runtime' },
       { icon: Network, name: 'Model Providers' },
@@ -840,14 +744,12 @@ const architectureLayers = [
     ],
   },
   {
-    label: '支撑层',
     items: [
       { icon: ShieldCheck, name: 'Policy / Approval / Sandbox' },
       { icon: GitBranch, name: 'Git Workspace' },
     ],
   },
   {
-    label: '持久层',
     items: [
       { icon: Database, name: 'SQLite Event Store + Projections' },
       { icon: ScrollText, name: 'File Artifact Store' },
@@ -855,40 +757,34 @@ const architectureLayers = [
   },
 ]
 
-function Architecture() {
+function Architecture({ copy }) {
   return (
     <section className="section section-architecture" id="architecture">
       <div className="container architecture-layout">
         <div className="architecture-copy">
           <SectionHeading
-            eyebrow="Architecture"
-            title="两个入口，一条可审计的请求路径"
-            description="CLI 与 VS Code 最终调用同一套 Application Services、Agent Runtime、验证与存储层。"
+            eyebrow={copy.architecture.eyebrow}
+            title={copy.architecture.title}
+            description={copy.architecture.description}
           />
           <Reveal className="request-path">
-            <div className="request-path-label">REQUEST PATH</div>
+            <div className="request-path-label">{copy.architecture.requestPath}</div>
             <div className="path-flow">
-              <span>CLI / VS Code</span>
-              <ChevronRight size={15} />
-              <span>Application</span>
-              <ChevronRight size={15} />
-              <span>Agent Runtime</span>
-              <ChevronRight size={15} />
-              <span>Tools</span>
-              <ChevronRight size={15} />
-              <span>Storage</span>
+              {copy.architecture.flow.map((item, index) => (
+                <Fragment key={item}>
+                  <span>{item}</span>
+                  {index < copy.architecture.flow.length - 1 ? <ChevronRight size={15} /> : null}
+                </Fragment>
+              ))}
             </div>
-            <p>
-              Policy、Approval 与 Sandbox 在高风险动作发生时提供约束，Git Workspace
-              保证候选与原项目隔离。
-            </p>
+            <p>{copy.architecture.note}</p>
           </Reveal>
         </div>
 
         <Reveal delay={90} className="architecture-stack">
           {architectureLayers.map((layer, layerIndex) => (
-            <div className="architecture-layer" key={layer.label}>
-              <div className="architecture-layer-label">{layer.label}</div>
+            <div className="architecture-layer" key={copy.architecture.layers[layerIndex].label}>
+              <div className="architecture-layer-label">{copy.architecture.layers[layerIndex].label}</div>
               <div className="architecture-layer-items">
                 {layer.items.map((item, itemIndex) => {
                   const Icon = item.icon
@@ -912,14 +808,14 @@ function Architecture() {
   )
 }
 
-function Usage() {
+function Usage({ copy }) {
   return (
     <section className="section section-usage" id="usage">
       <div className="container">
         <SectionHeading
-          eyebrow="Two entry points"
-          title="选择你习惯的工作方式"
-          description="同一个运行时，两种交互入口。终端适合自动化与脚本，编辑器适合日常查看与决策。"
+          eyebrow={copy.usage.eyebrow}
+          title={copy.usage.title}
+          description={copy.usage.description}
         />
         <div className="usage-grid">
           <Reveal className="usage-card">
@@ -928,14 +824,11 @@ function Usage() {
                 <Terminal size={23} strokeWidth={1.6} />
               </div>
               <div>
-                <span className="usage-tag">CLI</span>
-                <h3>完整命令行工作流</h3>
+                <span className="usage-tag">{copy.usage.cards[0].tag}</span>
+                <h3>{copy.usage.cards[0].title}</h3>
               </div>
             </div>
-            <p>
-              适合终端自动化、批量任务与脚本调用。通过 Git Worktree 隔离候选，可执行
-              init、optimize、review、apply、rollback 等完整流程。
-            </p>
+            <p>{copy.usage.cards[0].text}</p>
             <div className="usage-commands">
               <code>algocode init</code>
               <code>algocode optimize</code>
@@ -951,27 +844,18 @@ function Usage() {
                 <Monitor size={23} strokeWidth={1.6} />
               </div>
               <div>
-                <span className="usage-tag">VS Code</span>
-                <h3>编辑器内闭环体验</h3>
+                <span className="usage-tag">{copy.usage.cards[1].tag}</span>
+                <h3>{copy.usage.cards[1].title}</h3>
               </div>
             </div>
-            <p>
-              在临时影子工作区中运行，右键即可优化。阶段进度、Diff、Review、Apply 与
-              Rollback 都在编辑器内完成。
-            </p>
+            <p>{copy.usage.cards[1].text}</p>
             <div className="usage-checklist">
-              <span>
-                <CheckCircle2 size={15} />
-                实时阶段进度
-              </span>
-              <span>
-                <CheckCircle2 size={15} />
-                Diff 与 Review
-              </span>
-              <span>
-                <CheckCircle2 size={15} />
-                Apply / Rollback
-              </span>
+              {copy.usage.cards[1].checklist.map((item) => (
+                <span key={item}>
+                  <CheckCircle2 size={15} />
+                  {item}
+                </span>
+              ))}
             </div>
           </Reveal>
         </div>
@@ -980,7 +864,7 @@ function Usage() {
   )
 }
 
-function Footer() {
+function Footer({ copy }) {
   return (
     <footer className="footer">
       <div className="container footer-grid">
@@ -989,11 +873,11 @@ function Footer() {
             <img src="./algocode_icon.png" alt="" width="38" height="38" />
             <span><Wordmark /></span>
           </div>
-          <p>面向 C++ / Python 的可验证算法优化 Agent。本地优先，证据驱动，可回滚。</p>
+          <p>{copy.footer.description}</p>
         </div>
 
         <div className="footer-column">
-          <h3>资源</h3>
+          <h3>{copy.footer.resources}</h3>
           <a href={GH_URL} target="_blank" rel="noreferrer">
             GitHub
             <ArrowRight size={13} />
@@ -1011,20 +895,15 @@ function Footer() {
         <div className="footer-declaration">
           <div className="footer-declaration-mark">
             <Zap size={16} />
-            <span>性能与结果声明</span>
+            <span>{copy.footer.declarationTitle}</span>
           </div>
-          <p>
-            <Wordmark /> 通过大模型分析源代码并生成候选优化。优化后的性能可能提升、没有明显变化，甚至下降；
-            结果受源代码质量、项目结构、模型能力、输入规模、运行环境和系统负载等因素影响。
-            <Wordmark /> 不承诺每次优化都带来正收益，也不替代人工代码审查。请以实际的 Correctness、Contract、
-            Benchmark、Diff 和 Review 结果为准，在确认行为正确且收益满足预期后再 Apply。
-          </p>
+          <p>{copy.footer.declaration}</p>
         </div>
       </div>
 
       <div className="container footer-bottom">
-        <span>© 2026 <Wordmark /> 贡献者</span>
-        <span>MIT 许可证</span>
+        <span>© 2026 <Wordmark /> {copy.footer.contributors}</span>
+        <span>{copy.footer.license}</span>
       </div>
     </footer>
   )
@@ -1033,6 +912,29 @@ function Footer() {
 export default function App() {
   const hash = useHashRoute()
   const isDocs = hash.startsWith('#/docs')
+  const routeLanguage = languageFromHash(hash)
+  const [lang, setLang] = useState(() => routeLanguage || getPreferredLanguage())
+  const copy = siteCopy[lang]
+
+  useEffect(() => {
+    if (routeLanguage && routeLanguage !== lang) {
+      setLang(routeLanguage)
+    }
+  }, [routeLanguage, lang])
+
+  useEffect(() => {
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en'
+    document.title = copy.metadata.title
+    document.querySelector('meta[name="description"]')?.setAttribute('content', copy.metadata.description)
+  }, [lang, copy.metadata.description, copy.metadata.title])
+
+  const changeLanguage = (nextLanguage) => {
+    setLang(nextLanguage)
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage)
+    if (isDocs) {
+      window.location.hash = docsPath(nextLanguage, docsPathFromHash(hash))
+    }
+  }
 
   return (
     <>
@@ -1041,23 +943,23 @@ export default function App() {
         <div className="site-light" />
         <ParticleField />
       </div>
-      <Navbar />
+      <Navbar lang={lang} copy={copy} onLanguageChange={changeLanguage} />
       <main>
         {isDocs ? (
-          <DocsPage route={hash} />
+          <DocsPage route={hash} lang={lang} />
         ) : (
           <>
-            <Hero />
-            <Install />
-            <Capabilities />
-            <Features />
-            <QuickStart />
-            <Architecture />
-            <Usage />
+            <Hero copy={copy} />
+            <Install copy={copy} lang={lang} />
+            <Capabilities copy={copy} />
+            <Features copy={copy} />
+            <QuickStart copy={copy} />
+            <Architecture copy={copy} />
+            <Usage copy={copy} />
           </>
         )}
       </main>
-      <Footer />
+      <Footer copy={copy} />
     </>
   )
 }

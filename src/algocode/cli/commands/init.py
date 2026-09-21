@@ -39,15 +39,15 @@ DataDirOption = Annotated[
     typer.Option("--data-dir", help="Override the data directory."),
 ]
 
-INIT_STAGES = ("扫描", "契约", "规格", "基线", "校验", "基准", "就绪")
+INIT_STAGES = ("SCAN", "CONTRACT", "SPECS", "BASELINE", "CORRECTNESS", "BENCHMARK", "READY")
 _STAGE_LABELS = {
-    "scan": "扫描",
-    "contract": "契约",
-    "specs": "规格",
-    "baseline": "基线",
-    "correctness": "校验",
-    "benchmark": "基准",
-    "persist": "就绪",
+    "scan": "SCAN",
+    "contract": "CONTRACT",
+    "specs": "SPECS",
+    "baseline": "BASELINE",
+    "correctness": "CORRECTNESS",
+    "benchmark": "BENCHMARK",
+    "persist": "READY",
 }
 
 
@@ -73,7 +73,7 @@ class _RailAdapter:
             if label == self._active:
                 self._active = None
         elif event.kind == "fail":
-            self._reporter.fail(event.detail or f"{label} 失败")
+            self._reporter.fail(event.detail or f"{label} failed")
             self._active = None
         elif event.kind == "note":
             self._reporter.note(event.detail)
@@ -102,15 +102,15 @@ def _preflight_lines(context, root: Path, language: str) -> list[str]:
         build_provider(context.config)
         model_note = f"{context.config.defaults.provider}/{context.config.defaults.model}"
     except ProviderError:
-        model_note = "未配置（将使用确定性回退契约）"
-    git_note = "已存在" if (root / ".git").exists() else "将执行 git init"
+        model_note = "not configured (deterministic fallback contract will be used)"
+    git_note = "already initialized" if (root / ".git").exists() else "will run git init"
     return [
-        f"项目目录：{root}",
-        f"语言：{resolved.value}",
-        f"Git：{git_note}",
-        f"模型：{model_note}",
-        "将生成：.algocode/ 下的配置、契约、判题、基准与任务状态",
-        "提示：使用 --no-bootstrap 只做注册，不生成任何产物",
+        f"Project directory: {root}",
+        f"Language: {resolved.value}",
+        f"Git: {git_note}",
+        f"Model: {model_note}",
+        "Creates configuration, contract, tests, benchmark, and task state under .algocode/",
+        "Tip: use --no-bootstrap to register only and skip artifact generation",
     ]
 
 
@@ -119,7 +119,7 @@ def _confirm(lines: list[str]) -> bool:
         typer.echo(f"  {line}")
     typer.echo("")
     try:
-        answer = typer.prompt("是否继续？[Y/n]", default="y", show_default=False)
+        answer = typer.prompt("Continue? [Y/n]", default="y", show_default=False)
     except (typer.Abort, EOFError):
         return False
     return answer.strip().lower() in {"", "y", "yes"}
@@ -152,10 +152,10 @@ def _evidence_rows(result: BootstrapResult, seed: int) -> list[tuple[str, str, s
         contract_note = result.contract_source or "-"
     if result.contract_source == "deterministic-fallback":
         contract_note += " · fallback"
-    rows.append(("契约", f".algocode/{contract_name}", contract_note))
+    rows.append(("Contract", f".algocode/{contract_name}", contract_note))
     rows.append(
         (
-            "基线",
+            "Baseline",
             f"baseline:{_short(result.baseline.id)}",
             f"git {str(result.project.git_revision)[:7]} · seed {seed}",
         )
@@ -164,55 +164,55 @@ def _evidence_rows(result: BootstrapResult, seed: int) -> list[tuple[str, str, s
         total = len(result.correctness.cases)
         rows.append(
             (
-                "校验",
+                "Correctness",
                 f"correctness:{_short(result.correctness_run_id or '-')}",
                 f"{result.correctness.passed_cases}/{total} passed",
             )
         )
     else:
-        rows.append(("校验", "skipped", "未生成判题规格"))
+        rows.append(("Correctness", "skipped", "correctness specification was not generated"))
     if result.benchmark_run is not None and result.benchmark_result is not None:
         summary = result.benchmark_result.summary
         samples = summary.count if summary is not None else len(result.benchmark_result.samples)
         rows.append(
             (
-                "基准",
+                "Benchmark",
                 f"benchmark:{_short(result.benchmark_run.id)}",
                 f"valid · {_median_note(summary, samples)}",
             )
         )
     else:
-        rows.append(("基准", "skipped", "未生成基准规格"))
-    rows.append(("任务", f"task:{_short(result.task.id)}", "ready"))
+        rows.append(("Benchmark", "skipped", "benchmark specification was not generated"))
+    rows.append(("Task", f"task:{_short(result.task.id)}", "ready"))
     return rows
 
 
 def _failure_hint(exc: Exception) -> str:
     message = str(exc)
     if "entrypoint" in message:
-        return "在项目根目录添加 test.py/main.py 或 test.cpp/main.cpp，或使用 --no-bootstrap"
+        return "Add test.py/main.py or test.cpp/main.cpp at the project root, or use --no-bootstrap"
     if "contract test failed" in message:
-        return "查看 .algocode/oracle/ 下的契约测试，或使用 --no-bootstrap 跳过"
+        return "Inspect the contract test under .algocode/oracle/, or use --no-bootstrap to skip it"
     if "correctness specification failed" in message:
-        return "检查 .algocode/oracle/correctness.yaml 与项目实际输出"
+        return "Check .algocode/oracle/correctness.yaml against the project output"
     if "benchmark specification failed" in message:
-        return "检查 .algocode/benchmarks/benchmark.yaml"
+        return "Check .algocode/benchmarks/benchmark.yaml"
     return ""
 
 
 def _offer_next_steps(result: BootstrapResult, data_dir: Path | None) -> None:
     task_id = str(result.task.id)
     options = (
-        ("开始优化", f"algocode optimize {task_id}"),
-        ("查看基线报告", f"algocode report {task_id} --markdown"),
-        ("配置模型", "algocode api"),
+        ("Start optimization", f"algocode optimize {task_id}"),
+        ("View baseline report", f"algocode report {task_id} --markdown"),
+        ("Configure model", "algocode api"),
     )
     typer.echo("")
-    typer.echo("下一步：")
+    typer.echo("Next steps:")
     for index, (label, command) in enumerate(options, start=1):
         typer.echo(f"  {index}) {label}  ({command})")
     try:
-        answer = typer.prompt("选择 [1/2/3，回车退出]", default="", show_default=False)
+        answer = typer.prompt("Choose [1/2/3, Enter to exit]", default="", show_default=False)
     except (typer.Abort, EOFError):
         return
     choice = answer.strip()
@@ -293,7 +293,7 @@ def init_command(
             root = Path(path).expanduser().resolve()
             if interactive and not yes and not json_output and not quiet:
                 if not _confirm(_preflight_lines(context, root, language)):
-                    typer.echo("已取消。")
+                    typer.echo("Cancelled.")
                     raise typer.Exit(code=0)
             started_at = time.perf_counter()
             result = asyncio.run(
@@ -309,7 +309,7 @@ def init_command(
             payload = bootstrap_payload(result)
             rows = _evidence_rows(result, seed=context.config.runtime.run_seed)
             human_lines = [
-                f"init 完成 · 用时 {format_duration(elapsed)}",
+                f"init completed · elapsed {format_duration(elapsed)}",
                 *render_evidence(rows),
             ]
             emit_result(

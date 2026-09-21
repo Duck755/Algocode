@@ -16,66 +16,101 @@ import {
 } from 'lucide-react'
 import './docs.css'
 
-const docsNav = [
-  {
-    title: '快速上手',
-    items: [
+const docsNav = {
+  zh: [
+    { title: '快速上手', items: [
       { label: '安装', path: 'getting-started/installation' },
       { label: '快速开始', path: 'getting-started/quickstart' },
       { label: '配置', path: 'getting-started/configuration' },
       { label: '常见问题', path: 'getting-started/troubleshooting' },
-    ],
-  },
-  {
-    title: '命令手册',
-    items: [{ label: '命令总览', path: 'commands/index' }],
-  },
-  {
-    title: '用户指南',
-    items: [
+    ] },
+    { title: '命令手册', items: [{ label: '命令总览', path: 'commands/index' }] },
+    { title: '用户指南', items: [
       { label: '简略工作流', path: 'user-guide/quick-workflow' },
       { label: '完整工作流', path: 'user-guide/workflow' },
-    ],
-  },
-  {
-    title: '核心概念',
-    items: [
+    ] },
+    { title: '核心概念', items: [
       { label: '架构概览', path: 'concepts/architecture' },
       { label: '证据模型', path: 'concepts/evidence-model' },
       { label: '候选生命周期', path: 'concepts/candidate-lifecycle' },
       { label: '存储与产物', path: 'concepts/storage-and-artifacts' },
       { label: '策略、审批与沙箱', path: 'concepts/policy-approval-sandbox' },
       { label: '模型 Provider', path: 'concepts/model-providers' },
-    ],
-  },
-  {
-    title: '参考文档',
-    items: [
+    ] },
+    { title: '参考文档', items: [
       { label: 'CLI 参考', path: 'reference/cli' },
       { label: '配置参考', path: 'reference/config' },
       { label: '项目目录', path: 'reference/project-layout' },
       { label: 'Correctness Schema', path: 'reference/correctness-spec' },
       { label: 'Benchmark Schema', path: 'reference/benchmark-spec' },
       { label: 'Contract Schema', path: 'reference/contract-schema' },
-    ],
-  },
-  {
-    title: '开发维护',
-    items: [
+    ] },
+    { title: '开发维护', items: [
       { label: '代码结构', path: 'development/code-structure' },
       { label: '测试', path: 'development/testing' },
       { label: '发布', path: 'development/release' },
-    ],
-  },
-  {
-    title: '更新日志',
-    items: [
+    ] },
+    { title: '更新日志', items: [
       { label: 'v0.1.2', path: 'changelog/v0.1.2' },
       { label: 'v0.1.1', path: 'changelog/v0.1.1' },
       { label: 'v0.1.0', path: 'changelog/v0.1.0' },
-    ],
+    ] },
+  ],
+  en: [
+    { title: 'Getting Started', items: [
+      { label: 'Installation', path: 'getting-started/installation' },
+      { label: 'Quick Start', path: 'getting-started/quickstart' },
+      { label: 'Configuration', path: 'getting-started/configuration' },
+      { label: 'Troubleshooting', path: 'getting-started/troubleshooting' },
+    ] },
+    { title: 'Command Guide', items: [{ label: 'Command Overview', path: 'commands/index' }] },
+    { title: 'User Guide', items: [
+      { label: 'Quick Workflow', path: 'user-guide/quick-workflow' },
+      { label: 'Complete Workflow', path: 'user-guide/workflow' },
+    ] },
+    { title: 'Core Concepts', items: [
+      { label: 'Architecture', path: 'concepts/architecture' },
+      { label: 'Evidence Model', path: 'concepts/evidence-model' },
+      { label: 'Candidate Lifecycle', path: 'concepts/candidate-lifecycle' },
+      { label: 'Storage and Artifacts', path: 'concepts/storage-and-artifacts' },
+      { label: 'Policy, Approval, and Sandbox', path: 'concepts/policy-approval-sandbox' },
+      { label: 'Model Providers', path: 'concepts/model-providers' },
+    ] },
+    { title: 'Reference', items: [
+      { label: 'CLI Reference', path: 'reference/cli' },
+      { label: 'Configuration Reference', path: 'reference/config' },
+      { label: 'Project Layout', path: 'reference/project-layout' },
+      { label: 'Correctness Schema', path: 'reference/correctness-spec' },
+      { label: 'Benchmark Schema', path: 'reference/benchmark-spec' },
+      { label: 'Contract Schema', path: 'reference/contract-schema' },
+    ] },
+    { title: 'Development', items: [
+      { label: 'Code Structure', path: 'development/code-structure' },
+      { label: 'Testing', path: 'development/testing' },
+      { label: 'Release', path: 'development/release' },
+    ] },
+    { title: 'Changelog', items: [
+      { label: 'v0.1.2', path: 'changelog/v0.1.2' },
+      { label: 'v0.1.1', path: 'changelog/v0.1.1' },
+      { label: 'v0.1.0', path: 'changelog/v0.1.0' },
+    ] },
+  ],
+}
+
+const docsUi = {
+  zh: {
+    title: '文档', search: '搜索文档', clearSearch: '清除搜索', navAria: '文档导航', notFound: '未找到匹配文档',
+    toc: '本页目录', tocAria: '本页目录', copyCode: '复制代码', copied: '已复制', copy: '复制', copyHeading: '复制标题链接',
+    previous: '上一页', next: '下一页', breadcrumb: '文档', openNav: '打开文档导航', closeNav: '关闭文档导航',
+    mermaidError: '图表渲染失败', mermaidLoading: '正在渲染图表…', notFoundBody: '当前文档路径', notFoundHint: '请从左侧导航选择其他文档。',
   },
-]
+  en: {
+    title: 'Documentation', search: 'Search docs', clearSearch: 'Clear search', navAria: 'Documentation navigation', notFound: 'No matching documentation',
+    toc: 'On this page', tocAria: 'On this page', copyCode: 'Copy code', copied: 'Copied', copy: 'Copy', copyHeading: 'Copy heading link',
+    previous: 'Previous', next: 'Next', breadcrumb: 'Docs', openNav: 'Open documentation navigation', closeNav: 'Close documentation navigation',
+    mermaidError: 'Diagram rendering failed', mermaidLoading: 'Rendering diagram…', notFoundBody: 'Current documentation path', notFoundHint: 'Choose another page from the navigation.',
+  },
+}
 
 const rawDocFiles = import.meta.glob('../../docs/**/*.md', {
   query: '?raw',
@@ -95,16 +130,25 @@ function stripDocsPrefix(key) {
   return key.replaceAll('\\', '/').replace(/^.*\/docs\//, '')
 }
 
-function getDocPath(route) {
+function getDocsRoute(route) {
   const raw = String(route || '')
     .replace(/^#\/docs\/?/, '')
     .split('?')[0]
     .replace(/\/+$/, '')
-  return raw || defaultDocPath
+  const [locale, ...rest] = raw.split('/')
+  if (locale === 'en' || locale === 'zh') {
+    return { lang: locale, path: rest.join('/') || defaultDocPath }
+  }
+  return { lang: 'zh', path: raw || defaultDocPath }
 }
 
-function docsHref(path) {
-  return `#/docs/${path}`
+function docsHref(lang, path) {
+  return `#/docs/${lang}/${path}`
+}
+
+function getDocContent(lang, path) {
+  if (lang === 'en') return docsContent[`en/${path}.md`]
+  return docsContent[`${path}.md`]
 }
 
 function resolveRelativePath(baseDir, target) {
@@ -179,7 +223,7 @@ function useDocsTheme() {
   return theme
 }
 
-function MermaidBlock({ code }) {
+function MermaidBlock({ code, ui }) {
   const [svg, setSvg] = useState('')
   const [error, setError] = useState('')
   const theme = useDocsTheme()
@@ -241,14 +285,14 @@ function MermaidBlock({ code }) {
         <div className="docs-mermaid-canvas" dangerouslySetInnerHTML={{ __html: svg }} />
       ) : (
         <div className="docs-mermaid-loading">
-          {error ? `图表渲染失败：${error}` : '正在渲染图表…'}
+          {error ? `${ui.mermaidError}: ${error}` : ui.mermaidLoading}
         </div>
       )}
     </div>
   )
 }
 
-function CodeBlock({ language, code }) {
+function CodeBlock({ language, code, ui }) {
   const [copied, setCopied] = useState(false)
 
   const copy = async () => {
@@ -268,9 +312,9 @@ function CodeBlock({ language, code }) {
           <Terminal size={13} />
           {language || 'text'}
         </span>
-        <button type="button" onClick={copy} aria-label="复制代码">
+        <button type="button" onClick={copy} aria-label={ui.copyCode}>
           {copied ? <Check size={14} /> : <Clipboard size={14} />}
-          {copied ? '已复制' : '复制'}
+          {copied ? ui.copied : ui.copy}
         </button>
       </div>
       <pre>
@@ -280,7 +324,7 @@ function CodeBlock({ language, code }) {
   )
 }
 
-function MarkdownRenderer({ content, docPath, onNavigate }) {
+function MarkdownRenderer({ content, docPath, lang, onNavigate, ui }) {
   const components = useMemo(() => {
     const makeHeading = (Tag) => {
       return function Heading({ children }) {
@@ -292,7 +336,7 @@ function MarkdownRenderer({ content, docPath, onNavigate }) {
         return (
           <Tag id={id}>
             {children}
-            <a className="docs-heading-anchor" href={`#${id}`} aria-label="复制标题链接">
+            <a className="docs-heading-anchor" href={`#${id}`} aria-label={ui.copyHeading}>
               #
             </a>
           </Tag>
@@ -313,11 +357,11 @@ function MarkdownRenderer({ content, docPath, onNavigate }) {
         const language = match?.[1]?.toLowerCase()
 
         if (language === 'mermaid') {
-          return <MermaidBlock code={text} />
+          return <MermaidBlock code={text} ui={ui} />
         }
 
         if (isBlock) {
-          return <CodeBlock language={language} code={text} />
+          return <CodeBlock language={language} code={text} ui={ui} />
         }
 
         return <code className="docs-inline-code">{children}</code>
@@ -351,7 +395,7 @@ function MarkdownRenderer({ content, docPath, onNavigate }) {
 
           return (
             <a
-              href={docsHref(target)}
+              href={docsHref(lang, target)}
               onClick={(event) => {
                 event.preventDefault()
                 onNavigate(target)
@@ -370,7 +414,7 @@ function MarkdownRenderer({ content, docPath, onNavigate }) {
         )
       },
     }
-  }, [docPath, onNavigate])
+  }, [docPath, lang, onNavigate, ui])
 
   return (
     <div className="docs-markdown">
@@ -381,13 +425,13 @@ function MarkdownRenderer({ content, docPath, onNavigate }) {
   )
 }
 
-function TableOfContents({ headings }) {
+function TableOfContents({ headings, ui }) {
   if (!headings.length) return null
 
   return (
     <aside className="docs-toc">
-      <div className="docs-toc-title">本页目录</div>
-      <nav aria-label="本页目录">
+      <div className="docs-toc-title">{ui.toc}</div>
+      <nav aria-label={ui.tocAria}>
         {headings.map((heading) => (
           <a
             key={`${heading.id}-${heading.level}`}
@@ -406,21 +450,24 @@ function TableOfContents({ headings }) {
   )
 }
 
-export default function DocsPage({ route }) {
+export default function DocsPage({ route, lang: preferredLang }) {
   const [query, setQuery] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const docPath = getDocPath(route)
-  const docKey = `${docPath}.md`
-  const content = docsContent[docKey]
-    || `# 文档未找到\n\n当前文档路径：\`${docPath}\`\n\n请从左侧导航选择其他文档。`
+  const routeInfo = getDocsRoute(route)
+  const lang = routeInfo.lang || preferredLang || 'zh'
+  const docPath = routeInfo.path
+  const ui = docsUi[lang]
+  const nav = docsNav[lang]
+  const content = getDocContent(lang, docPath)
+    || `# ${ui.notFound}\n\n${ui.notFoundBody}: \`${docPath}\`\n\n${ui.notFoundHint}`
 
   const flatItems = useMemo(
-    () => docsNav.flatMap((section) => section.items.map((item) => ({
+    () => nav.flatMap((section) => section.items.map((item) => ({
       ...item,
       section: section.title,
     }))),
-    [],
+    [nav],
   )
 
   const currentIndex = flatItems.findIndex((item) => item.path === docPath)
@@ -451,22 +498,22 @@ export default function DocsPage({ route }) {
     if (!keyword) return []
 
     return flatItems.filter((item) => {
-      const source = docsContent[`${item.path}.md`] || ''
+      const source = getDocContent(lang, item.path) || ''
       return item.label.toLowerCase().includes(keyword)
         || source.toLowerCase().includes(keyword)
     })
-  }, [query, flatItems])
+  }, [query, flatItems, lang])
 
   const navigate = (path) => {
     setSidebarOpen(false)
-    window.location.hash = docsHref(path)
+    window.location.hash = docsHref(lang, path)
   }
 
   useEffect(() => {
     setQuery('')
     setSidebarOpen(false)
     window.scrollTo(0, 0)
-  }, [docPath])
+  }, [docPath, lang])
 
   return (
     <div className="docs-page">
@@ -474,7 +521,7 @@ export default function DocsPage({ route }) {
         <div className="docs-sidebar-top">
           <div className="docs-sidebar-title">
             <BookOpen size={17} />
-            <span>文档</span>
+            <span>{ui.title}</span>
           </div>
 
           <label className="docs-search">
@@ -482,18 +529,18 @@ export default function DocsPage({ route }) {
             <input
               type="search"
               value={query}
-              placeholder="搜索文档"
+              placeholder={ui.search}
               onChange={(event) => setQuery(event.target.value)}
             />
             {query ? (
-              <button type="button" onClick={() => setQuery('')} aria-label="清除搜索">
+              <button type="button" onClick={() => setQuery('')} aria-label={ui.clearSearch}>
                 <X size={14} />
               </button>
             ) : null}
           </label>
         </div>
 
-        <nav className="docs-nav" aria-label="文档导航">
+        <nav className="docs-nav" aria-label={ui.navAria}>
           {query ? (
             <div className="docs-search-results">
               {searchResults.length ? (
@@ -509,17 +556,17 @@ export default function DocsPage({ route }) {
                   </button>
                 ))
               ) : (
-                <div className="docs-search-empty">未找到匹配文档</div>
+                <div className="docs-search-empty">{ui.notFound}</div>
               )}
             </div>
           ) : (
-            docsNav.map((section) => (
+            nav.map((section) => (
               <div className="docs-nav-section" key={section.title}>
                 <div className="docs-nav-section-title">{section.title}</div>
                 {section.items.map((item) => (
                   <a
                     key={item.path}
-                    href={docsHref(item.path)}
+                    href={docsHref(lang, item.path)}
                     className={`docs-nav-link ${docPath === item.path ? 'is-active' : ''}`}
                     onClick={(event) => {
                       event.preventDefault()
@@ -541,7 +588,7 @@ export default function DocsPage({ route }) {
           type="button"
           className="docs-sidebar-backdrop"
           onClick={() => setSidebarOpen(false)}
-          aria-label="关闭文档导航"
+          aria-label={ui.closeNav}
         />
       ) : null}
 
@@ -550,7 +597,7 @@ export default function DocsPage({ route }) {
           type="button"
           className="docs-sidebar-toggle"
           onClick={() => setSidebarOpen((value) => !value)}
-          aria-label="打开文档导航"
+          aria-label={ui.openNav}
         >
           <Menu size={18} />
         </button>
@@ -558,7 +605,7 @@ export default function DocsPage({ route }) {
         <div className="docs-content-inner">
           <main className="docs-main">
             <div className="docs-breadcrumb">
-              文档
+              {ui.breadcrumb}
               {currentItem ? (
                 <>
                   <ChevronRight size={14} />
@@ -569,26 +616,26 @@ export default function DocsPage({ route }) {
               ) : null}
             </div>
 
-            <MarkdownRenderer content={content} docPath={docPath} onNavigate={navigate} />
+            <MarkdownRenderer content={content} docPath={docPath} lang={lang} onNavigate={navigate} ui={ui} />
 
             <div className="docs-pager">
               {previous ? (
                 <button type="button" onClick={() => navigate(previous.path)}>
-                  <span>上一页</span>
+                  <span>{ui.previous}</span>
                   <strong>{previous.label}</strong>
                 </button>
               ) : <span />}
 
               {next ? (
                 <button type="button" className="is-next" onClick={() => navigate(next.path)}>
-                  <span>下一页</span>
+                  <span>{ui.next}</span>
                   <strong>{next.label}</strong>
                 </button>
               ) : <span />}
             </div>
           </main>
 
-          <TableOfContents headings={headings} />
+          <TableOfContents headings={headings} ui={ui} />
         </div>
       </div>
     </div>

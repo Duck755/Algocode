@@ -49,9 +49,7 @@ class InitExperienceTests(unittest.TestCase):
         self.assertEqual(result.stderr, "")
 
     def test_bootstrap_streams_stage_rail_and_evidence(self) -> None:
-        project_root = self._project(
-            {"test.py": "print('value=42')\nprint('elapsed=0.500000')\n"}
-        )
+        project_root = self._project({"test.py": "print('value=42')\nprint('elapsed=0.500000')\n"})
         contract = ProjectContract(
             purpose="Deterministic entrypoint.",
             performance_goal="Reduce the test entrypoint runtime.",
@@ -73,9 +71,9 @@ class InitExperienceTests(unittest.TestCase):
                 ],
             )
         self.assertEqual(result.exit_code, 0, result.output)
-        for stage in ("扫描", "契约", "基线", "就绪"):
+        for stage in ("SCAN", "CONTRACT", "BASELINE", "READY"):
             self.assertIn(stage, result.stderr)
-        self.assertIn("证据链", result.stdout)
+        self.assertIn("Evidence Chain", result.stdout)
         self.assertIn("contract.json", result.stdout)
         self.assertIn("task:", result.stdout)
 

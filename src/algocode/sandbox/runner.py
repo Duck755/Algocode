@@ -15,6 +15,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from algocode.config.model import SandboxConfig
+from algocode.process_output import run_text
 
 DEFAULT_ALLOWED_ENV = (
     "PATH",
@@ -643,10 +644,9 @@ def docker_tool_version(tool: str, image: str) -> str | None:
     if executable is None:
         return None
     try:
-        result = subprocess.run(
+        result = run_text(
             (executable, "run", "--rm", "--entrypoint", tool, image, "--version"),
             capture_output=True,
-            text=True,
             timeout=30,
             check=False,
         )
@@ -665,10 +665,9 @@ def wsl_tool_version(tool: str, distro: str) -> str | None:
     if executable is None:
         return None
     try:
-        result = subprocess.run(
+        result = run_text(
             (executable, "-d", distro, "-u", "root", "--", tool, "--version"),
             capture_output=True,
-            text=True,
             timeout=10,
             check=False,
         )

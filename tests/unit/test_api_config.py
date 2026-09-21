@@ -16,16 +16,13 @@ from algocode.cli.commands.api import (
     _secret_fingerprint,
     persist_provider_selection,
 )
-from algocode.cli.commands.model import _merge_model_choices
-from algocode.cli.commands.model import ModelChoice
+from algocode.cli.commands.model import ModelChoice, _merge_model_choices
 from algocode.security import CredentialStore
 
 
 class ApiConfigHelpersTests(unittest.TestCase):
     def test_model_choices_merge_upstream_and_configured_models(self) -> None:
-        models = {
-            "openai/configured": SimpleNamespace(provider="openai", model="configured")
-        }
+        models = {"openai/configured": SimpleNamespace(provider="openai", model="configured")}
 
         choices = _merge_model_choices(
             models,
@@ -43,11 +40,13 @@ class ApiConfigHelpersTests(unittest.TestCase):
         )
         self.assertEqual(
             _merge_model_choices({}, "openai", ["fresh"], "openai/missing"),
-            [ModelChoice(
-                model_key="openai/fresh",
-                model_id="fresh",
-                configured=False,
-            )],
+            [
+                ModelChoice(
+                    model_key="openai/fresh",
+                    model_id="fresh",
+                    configured=False,
+                )
+            ],
         )
 
     def test_secret_fingerprint_hides_middle(self) -> None:
@@ -84,6 +83,7 @@ class ApiConfigHelpersTests(unittest.TestCase):
                 return self.choices[0].value
 
         captured = []
+
         def fake_select(message, choices, default=None):
             captured.extend(choices)
             return FakeSelect(choices)
@@ -95,8 +95,9 @@ class ApiConfigHelpersTests(unittest.TestCase):
         self.assertEqual(selected, "upstream-a")
         self.assertEqual(
             titles,
-            ["upstream-a", "gpt-5.6", "configured", "输入其他模型 ID..."],
+            ["upstream-a", "gpt-5.6", "configured", "Enter another model ID..."],
         )
+
     def test_persist_provider_selection_stores_credential_outside_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             data_dir = Path(directory)
@@ -109,12 +110,15 @@ class ApiConfigHelpersTests(unittest.TestCase):
                 api_key="sk-test-key",
             )
 
-            with patch(
-                "algocode.security.credentials.default_data_dir",
-                return_value=data_dir,
-            ), patch(
-                "algocode.config.global_file.default_data_dir",
-                return_value=data_dir,
+            with (
+                patch(
+                    "algocode.security.credentials.default_data_dir",
+                    return_value=data_dir,
+                ),
+                patch(
+                    "algocode.config.global_file.default_data_dir",
+                    return_value=data_dir,
+                ),
             ):
                 config_path = persist_provider_selection(selection)
 
@@ -144,12 +148,15 @@ class ApiConfigHelpersTests(unittest.TestCase):
                 api_key_env="OPENAI_API_KEY",
             )
 
-            with patch(
-                "algocode.security.credentials.default_data_dir",
-                return_value=data_dir,
-            ), patch(
-                "algocode.config.global_file.default_data_dir",
-                return_value=data_dir,
+            with (
+                patch(
+                    "algocode.security.credentials.default_data_dir",
+                    return_value=data_dir,
+                ),
+                patch(
+                    "algocode.config.global_file.default_data_dir",
+                    return_value=data_dir,
+                ),
             ):
                 config_path = persist_provider_selection(selection)
 

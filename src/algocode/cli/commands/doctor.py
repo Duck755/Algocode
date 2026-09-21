@@ -18,6 +18,7 @@ import typer
 from algocode import __version__
 from algocode.cli.output import JsonOption, NoColorOption, QuietOption, VerboseOption, emit_result
 from algocode.config.model import SandboxConfig
+from algocode.process_output import run_text
 from algocode.sandbox.runner import SandboxProcessRunner, docker_tool_version, wsl_tool_version
 from algocode.storage.paths import default_data_dir
 
@@ -220,10 +221,9 @@ def _missing_install_dependencies(report: DoctorReport) -> tuple[MissingDependen
 
 def _command_output(command: tuple[str, ...], *, timeout_seconds: int = 5) -> str:
     try:
-        result = subprocess.run(
+        result = run_text(
             command,
             capture_output=True,
-            text=True,
             timeout=timeout_seconds,
             check=False,
         )
@@ -346,7 +346,10 @@ def _wsl_install_command(key: str, distro: str) -> tuple[str, ...] | None:
 
 def _docker_install_hint(key: str, image: str) -> str:
     tool = "g++" if key == "docker_g++" else "python3"
-    return f"无法自动持久化安装 Docker 容器工具；请更换或重建镜像 {image}，确保其中包含 {tool}。"
+    return (
+        "Docker container tools cannot be installed persistently. "
+        f"Rebuild or replace image {image} with {tool} included."
+    )
 
 
 def _install_missing_dependencies(
@@ -361,22 +364,25 @@ def _install_missing_dependencies(
             hint = _docker_install_hint(dependency.key, config.image)
         elif dependency.key.startswith("wsl_"):
             command = _wsl_install_command(dependency.key, config.wsl_distro)
-            hint = "未找到 WSL 可执行文件" if command is None else None
+            hint = "WSL executable was not found" if command is None else None
         else:
             command = _host_install_command(dependency.key, manager)
             if command is None:
-                hint = "未检测到可用的包管理器，请手动安装后重新运行 doctor"
+                hint = (
+                    "No supported package manager was detected. "
+                    "Install manually and run doctor again."
+                )
             else:
                 hint = None
 
         if command:
-            print(f"正在安装 {dependency.label}：{' '.join(command)}")
+            print(f"Installing {dependency.label}: {' '.join(command)}")
             try:
                 subprocess.run(command, check=False)
             except (OSError, subprocess.SubprocessError) as exc:
-                print(f"安装 {dependency.label} 失败：{exc}")
+                print(f"Failed to install {dependency.label}: {exc}")
         else:
-            print(f"跳过 {dependency.label}：{hint}")
+            print(f"Skipping {dependency.label}: {hint}")
 
 
 def run_doctor(data_dir: Path | None = None) -> DoctorReport:
@@ -452,14 +458,14 @@ def doctor_command(
     if missing and not json_output and not quiet and sys.stdin.isatty() and sys.stdout.isatty():
         print()
         print()
-        print("检测到缺失的依赖：")
+        print("Missing dependencies detected:")
         for dependency in missing:
             print(f"- {dependency.label}: {dependency.detail}")
-        answer = input("检测到缺失的依赖，是否一键安装？[Y/N] ").strip().lower()
+        answer = input("Install missing dependencies now? [Y/N] ").strip().lower()
         if answer in {"y", "yes"}:
             _install_missing_dependencies(missing, SandboxConfig())
             print()
-            print("安装完成，重新运行 doctor 检查：")
+            print("Installation completed. Running doctor again:")
             report = run_doctor(data_dir)
             _emit_doctor_report(
                 report,
@@ -469,7 +475,7 @@ def doctor_command(
                 verbose=verbose,
             )
         else:
-            print("已取消安装。")
+            print("Installation cancelled.")
 
     if not report.ok:
         raise typer.Exit(code=1)

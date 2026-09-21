@@ -93,6 +93,15 @@ Algocode 不依赖模型自我评价，而是通过行为契约、基线冻结�
 - **VS Code** — 用于右键菜单、实时阶段进度、Diff、Apply 和 Rollback。
 
 
+### 代码要求
+
+- 待优化项目应是 Git 仓库，入口程序能够直接构建和运行。
+- 支持 Python 和 C++，并提供明确的入口或测试入口。
+- 输入输出、退出码和关键行为应可稳定复现，便于建立 Correctness 和 Benchmark。
+- 避免依赖未提供的私密数据、网络服务或不可复现环境；复杂依赖建议提前配置。
+- 代码应有明确的优化目标，例如降低时间复杂度、减少内存占用或提升热点路径性能。
+
+
 ### CLI
 
 #### 安装
@@ -129,14 +138,18 @@ algocode doctor
 查看是否满足条件，建议优先运行
 
 ### 运行第一次优化
+先将待优化代码的文件放入文件夹中
 
-在项目目录中执行：
+在文件目录中执行：
 
 ```bash
 algocode init
+```
+![img_7.png](docs/picture/img_7.png)
+```bash
 algocode optimize
 ```
-
+![img_8.png](docs/picture/img_8.png)
 查看状态、证据和 Diff：
 
 ```bash
@@ -380,7 +393,7 @@ report.md
 ## 开发
 
 ```bash
-git clone https://github.com/acd2113/Algocode.git
+git clone https://github.com/acfoundry/Algocode.git
 cd Algocode
 python -m venv .venv
 .venv/bin/python -m pip install -e ".[dev]"

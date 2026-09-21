@@ -219,14 +219,14 @@ class CliOptimizeTests(unittest.TestCase):
         self.assertEqual(
             rows,
             [
-                ("任务", "task:task_9dc", "completed"),
-                ("耗时", "4m04s", "14 轮推理 · 16 次工具调用"),
-                ("阶段", "3 个", "分析 → 基线 → 方案"),
-                ("候选", "candidate:cand_5db", "selected"),
-                ("正确性", "run:corr_364", "passed"),
-                ("基准", "benchmark:bench_23", "valid=True"),
-                ("提升", "+3.95%", "3.222 → 3.095 · p=0.006"),
-                ("决策", "accepted", "evidence passed"),
+                ("Task", "task:task_9dc", "completed"),
+                ("Duration", "4m04s", "14 reasoning turns · 16 tool calls"),
+                ("Phases", "3 total", "Analyze → Baseline → Plan"),
+                ("Candidate", "candidate:cand_5db", "selected"),
+                ("Correctness", "run:corr_364", "passed"),
+                ("Benchmark", "benchmark:bench_23", "valid=True"),
+                ("Improvement", "+3.95%", "3.222 → 3.095 · p=0.006"),
+                ("Decision", "accepted", "evidence passed"),
             ],
         )
 
@@ -252,12 +252,12 @@ class CliOptimizeTests(unittest.TestCase):
         self.assertEqual(
             rows,
             [
-                ("任务", "task:task_1", "running"),
-                ("耗时", "240ms", "0 轮推理 · 0 次工具调用"),
-                ("阶段", "0 个", "-"),
-                ("候选", "未创建", "本次运行未产生候选"),
-                ("正确性", "未运行", "缺少候选正确性结果"),
-                ("基准", "未运行", "缺少候选基准结果"),
+                ("Task", "task:task_1", "running"),
+                ("Duration", "240ms", "0 reasoning turns · 0 tool calls"),
+                ("Phases", "0 total", "-"),
+                ("Candidate", "not created", "No candidate was created in this run."),
+                ("Correctness", "not run", "No candidate correctness result is available."),
+                ("Benchmark", "not run", "No candidate benchmark result is available."),
             ],
         )
 

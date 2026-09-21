@@ -87,48 +87,48 @@ def _evidence_rows(
     """Assemble the evidence block printed after a run."""
 
     rows: list[tuple[str, str, str]] = [
-        ("任务", f"task:{_short(result.task_id)}", result.status),
+        ("Task", f"task:{_short(result.task_id)}", result.status),
         (
-            "耗时",
+            "Duration",
             format_duration(elapsed),
-            f"{result.turns} 轮推理 · {result.tool_calls} 次工具调用",
+            f"{result.turns} reasoning turns · {result.tool_calls} tool calls",
         ),
         (
-            "阶段",
-            f"{len(result.completed_phases)} 个",
+            "Phases",
+            f"{len(result.completed_phases)} total",
             " → ".join(phase_label(name) for name in result.completed_phases) or "-",
         ),
     ]
     if candidate is None:
-        rows.append(("候选", "未创建", "本次运行未产生候选"))
+        rows.append(("Candidate", "not created", "No candidate was created in this run."))
     else:
-        rows.append(("候选", f"candidate:{_short(candidate.id)}", str(candidate.status)))
+        rows.append(("Candidate", f"candidate:{_short(candidate.id)}", str(candidate.status)))
     if correctness_state is None or correctness_state.get("resultId") is None:
-        rows.append(("正确性", "未运行", "缺少候选正确性结果"))
+        rows.append(("Correctness", "not run", "No candidate correctness result is available."))
     else:
         rows.append(
             (
-                "正确性",
+                "Correctness",
                 f"run:{_short(correctness_state['resultId'])}",
                 str(correctness_state.get("status") or "-"),
             )
         )
     if benchmark is None:
-        rows.append(("基准", "未运行", "缺少候选基准结果"))
+        rows.append(("Benchmark", "not run", "No candidate benchmark result is available."))
     else:
         valid = comparison.get("valid") if isinstance(comparison, dict) else None
-        rows.append(("基准", f"benchmark:{_short(benchmark.id)}", f"valid={valid}"))
+        rows.append(("Benchmark", f"benchmark:{_short(benchmark.id)}", f"valid={valid}"))
     if isinstance(comparison, dict) and comparison.get("improvement_percent") is not None:
         note = (
             f"{float(comparison.get('baseline_median', 0.0)):.3f}"
             f" → {float(comparison.get('candidate_median', 0.0)):.3f}"
             f" · p={float(comparison.get('p_value', 1.0)):.3f}"
         )
-        rows.append(("提升", f"{float(comparison['improvement_percent']):+.2f}%", note))
+        rows.append(("Improvement", f"{float(comparison['improvement_percent']):+.2f}%", note))
     if decision is not None:
         rows.append(
             (
-                "决策",
+                "Decision",
                 str(decision.outcome),
                 _trim(str(decision.reason or "-")),
             )
@@ -147,18 +147,18 @@ def _offer_next_steps(
 
     options: list[tuple[str, str]] = []
     if candidate_id is not None:
-        options.append(("查看候选改动", f"algocode diff {task_id}"))
+        options.append(("View candidate diff", f"algocode diff {task_id}"))
         if accepted:
-            options.append(("应用候选", f"algocode apply {task_id}"))
-    options.append(("生成任务报告", f"algocode report {task_id} --markdown"))
-    options.append(("重新规划重试", f"algocode retry {task_id}"))
+            options.append(("Apply candidate", f"algocode apply {task_id}"))
+    options.append(("Generate task report", f"algocode report {task_id} --markdown"))
+    options.append(("Replan and retry", f"algocode retry {task_id}"))
     typer.echo("")
-    typer.echo("下一步：")
+    typer.echo("Next steps:")
     for index, (label, command) in enumerate(options, start=1):
         typer.echo(f"  {index}) {label}  ({command})")
     try:
         answer = typer.prompt(
-            f"选择 [1/{len(options)}，回车退出]",
+            f"Choose [1/{len(options)}, Enter to exit]",
             default="",
             show_default=False,
         )
@@ -169,15 +169,15 @@ def _offer_next_steps(
         return
     selected = options[int(choice) - 1][0]
     try:
-        if selected == "查看候选改动":
+        if selected == "View candidate diff":
             from algocode.cli.commands.diff import diff_command
 
             diff_command(task_id, candidate_id=candidate_id, data_dir=data_dir)
-        elif selected == "应用候选":
+        elif selected == "Apply candidate":
             from algocode.cli.commands.apply import apply_command
 
             apply_command(task_id, candidate_id, data_dir=data_dir)
-        elif selected == "生成任务报告":
+        elif selected == "Generate task report":
             from algocode.cli.commands.report import report_command
 
             report_command(task_id, markdown=True, data_dir=data_dir)
@@ -330,7 +330,7 @@ def optimize_command(
     except KeyboardInterrupt as exc:
         live.close(ok=False)
         typer.echo(
-            "已中断；可执行 algocode retry 继续本次任务",
+            "Interrupted; run algocode retry to continue this task",
             err=True,
         )
         raise typer.Exit(code=130) from exc
@@ -424,7 +424,7 @@ def optimize_command(
         task_id=result.task_id,
         candidate_id=candidate_id,
         human_lines=(
-            f"{command_name_override} · {status} · 耗时 {format_duration(elapsed)}",
+            f"{command_name_override} · {status} · elapsed {format_duration(elapsed)}",
             *render_evidence(rows),
         ),
     )

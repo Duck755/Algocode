@@ -113,7 +113,7 @@ def _pad(text: str, width: int) -> str:
 def render_evidence(
     rows: Sequence[tuple[str, str, str]],
     *,
-    title: str = "证据链",
+    title: str = "Evidence Chain",
     unicode: bool | None = None,
     indent: str = "  ",
 ) -> list[str]:
@@ -173,17 +173,13 @@ class StageReporter:
         self._enabled = bool(enabled) and bool(self._stages)
         self._interactive = self._enabled and _is_tty(self._stream)
         self._color = self._interactive if color is None else bool(color) and self._interactive
-        self._ambiguous_wide = (
-            _infer_ambiguous_wide() if ambiguous_wide is None else ambiguous_wide
-        )
+        self._ambiguous_wide = _infer_ambiguous_wide() if ambiguous_wide is None else ambiguous_wide
         if unicode is True:
             self._glyphs = _UNICODE_GLYPHS
         elif unicode is False:
             self._glyphs = _ASCII_GLYPHS
         else:
-            self._glyphs = (
-                _UNICODE_GLYPHS if _supports_unicode(self._stream) else _ASCII_GLYPHS
-            )
+            self._glyphs = _UNICODE_GLYPHS if _supports_unicode(self._stream) else _ASCII_GLYPHS
         self._status = [_PENDING] * len(self._stages)
         self._durations: list[float | None] = [None] * len(self._stages)
         self._index = -1
@@ -305,8 +301,7 @@ class StageReporter:
                 suffix = f" · {detail}" if detail else ""
                 elapsed = format_duration(self._durations[index] or 0.0)
                 self._completion_lines.append(
-                    f"{self._title}:  {label} {self._glyphs['done'].strip()} "
-                    f"({elapsed}){suffix}"
+                    f"{self._title}:  {label} {self._glyphs['done'].strip()} ({elapsed}){suffix}"
                 )
                 self._render_locked()
                 self._flush()
@@ -341,9 +336,7 @@ class StageReporter:
     def _note(self, text: str) -> None:
         with self._lock:
             if self._interactive:
-                self._completion_lines.append(
-                    f"{self._title} {self._glyphs['note']} {text}"
-                )
+                self._completion_lines.append(f"{self._title} {self._glyphs['note']} {text}")
                 self._render_locked()
             else:
                 self._plain(f"{self._glyphs['note']} {text}")
@@ -417,13 +410,11 @@ class StageReporter:
         _plain_rail, styled_rail, active_offset = self._rail()
         lines = [styled_rail]
         if self._index >= 0:
-            detail = self._detail or "进行中"
+            detail = self._detail or "in progress"
             elapsed = format_duration(self._elapsed_stage())
             marker = self._glyphs["active"]
             indent = " " * max(0, active_offset)
-            lines.append(
-                f"{indent}{self._paint(marker, _CYAN)} {detail} · {elapsed}"
-            )
+            lines.append(f"{indent}{self._paint(marker, _CYAN)} {detail} · {elapsed}")
         lines.extend(self._completion_lines)
         return lines
 
