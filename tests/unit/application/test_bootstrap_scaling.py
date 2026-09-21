@@ -3,7 +3,8 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import yaml
 
@@ -17,6 +18,9 @@ from algocode.application.services.project_bootstrap_service import (
     _python_benchmark_spec,
     _scaling_inputs,
 )
+from algocode.domain.model import Language
+from algocode.languages.cpp import benchmark_harness_command
+from algocode.languages.types import BuildResult
 from algocode.project_layout import ProjectLayout
 
 
@@ -196,6 +200,26 @@ class BenchmarkSpecModeTests(unittest.TestCase):
         self.assertEqual(len(spec["inputs"]), 2)
 
 
+class HarnessCalibrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_calibration_ignores_a_slow_cold_start(self) -> None:
+        service = ProjectBootstrapService.__new__(ProjectBootstrapService)
+        service._run_probe = AsyncMock(
+            side_effect=[
+                0.120,
+                0.020,
+                0.040,
+                0.021,
+                0.041,
+                0.019,
+                0.039,
+            ]
+        )
+
+        rounds = await service._calibrate_harness(Path("."), ("harness",))
+
+        self.assertEqual(rounds, 15000)
+
+
 class HarnessActivationTests(unittest.IsolatedAsyncioTestCase):
     async def test_contract_harness_is_always_calibrated_and_activated(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -231,6 +255,54 @@ class HarnessActivationTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(generated, (".algocode/benchmarks/harness.py",))
 
+    async def test_cpp_harness_is_compiled_and_activated(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            layout = ProjectLayout.from_root(root)
+            layout.benchmark_spec_path.parent.mkdir(parents=True)
+            layout.benchmark_spec_path.write_text(
+                "schema_version: 1\nscope: process\nrun_command: []\n",
+                encoding="utf-8",
+            )
+            service = ProjectBootstrapService.__new__(ProjectBootstrapService)
+            service._context = SimpleNamespace(
+                language_registry=SimpleNamespace(sandbox_runner=None)
+            )
+            service._calibrate_harness = AsyncMock(return_value=321)
+            contract = ProjectContract(
+                purpose="optimize",
+                benchmarkHarness=(
+                    "#define main algocode_original_main\n"
+                    '#include "test.cpp"\n'
+                    "#undef main\n"
+                    "int main(int argc, char** argv) { return argc > 1 ? 0 : 1; }\n"
+                ),
+            )
+            compiled = BuildResult(
+                language=Language.CPP,
+                commands=(),
+                exit_code=0,
+                duration_seconds=0.0,
+            )
+
+            with patch(
+                "algocode.application.services.project_bootstrap_service.build_cpp_benchmark_harness",
+                new=AsyncMock(return_value=compiled),
+            ):
+                generated = await service._prepare_benchmark_scale(
+                    root,
+                    layout,
+                    contract,
+                    lambda *args: None,
+                    language="cpp",
+                )
+
+            raw = yaml.safe_load(layout.benchmark_spec_path.read_text(encoding="utf-8"))
+            harness = layout.benchmark_spec_path.parent / "harness.cpp"
+            self.assertTrue(harness.is_file())
+            self.assertEqual(raw["scope"], "process")
+            self.assertEqual(raw["run_command"], benchmark_harness_command(321))
+            self.assertEqual(generated, (".algocode/benchmarks/harness.cpp",))
 
 class HarnessContractTests(unittest.TestCase):
     def test_the_contract_carries_the_harness_source(self) -> None:

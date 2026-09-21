@@ -163,6 +163,28 @@ class BenchmarkHarnessValidationTests(unittest.TestCase):
 
         self.assertIsNone(issue)
 
+    def test_single_file_cpp_harness_is_accepted(self) -> None:
+        issue = benchmark_harness_issue(
+            "#define main algocode_original_main\n"
+            '#include "test.cpp"\n'
+            "#undef main\n"
+            "int main(int argc, char** argv) { return argc > 1 ? 0 : 1; }\n",
+            language="cpp",
+        )
+
+        self.assertIsNone(issue)
+
+    def test_cpp_harness_without_single_file_include_is_rejected(self) -> None:
+        issue = benchmark_harness_issue(
+            "#define main algocode_original_main\n"
+            "#undef main\n"
+            "int main(int argc, char** argv) { return argc; }\n",
+            language="cpp",
+        )
+
+        self.assertIsNotNone(issue)
+        self.assertIn("include the root implementation source", issue or "")
+
 
 if __name__ == "__main__":
     unittest.main()

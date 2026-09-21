@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import statistics
 import sys
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -17,6 +18,7 @@ from algocode.application.services.contract_service import (
     ContractDiscoveryService,
     ProjectContract,
     ScalingInput,
+    _sanitize_contract,
     benchmark_harness_issue,
 )
 from algocode.application.services.project_state import (
@@ -26,14 +28,20 @@ from algocode.application.services.project_state import (
 from algocode.benchmark.spec import load_benchmark_spec
 from algocode.correctness.spec import load_correctness_spec
 from algocode.domain.model import BenchmarkStatus, Language
+from algocode.languages.cpp import (
+    benchmark_harness_command,
+    benchmark_harness_executable,
+    build_cpp_benchmark_harness,
+)
 from algocode.project_layout import ProjectLayout
 from algocode.workspace import GitRepository
 from algocode.workspace.git import GitError
 
-_CHECKER_SOURCE = '''"""Compare deterministic key=value output while ignoring volatile fields."""
+_CHECKER_SOURCE = '''"""Compare output while ignoring volatile key/value and timing fields."""
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -47,6 +55,21 @@ _VOLATILE_KEYS = {
     "timestamp",
     "wall_time",
 }
+
+_VOLATILE_MARKERS = (
+    "cpu_time",
+    "duration",
+    "elapsed",
+    "runtime",
+    "time",
+    "timestamp",
+    "wall_time",
+    "耗时",
+    "时间",
+    "用时",
+)
+_NUMBER = re.compile(r"[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?")
+
 
 
 def _read(path: str) -> str:
@@ -64,15 +87,28 @@ def _parse(text: str) -> dict[str, str] | None:
     return values
 
 
+def _normalize_text_line(line: str) -> str:
+    normalized = line.rstrip()
+    lowered = normalized.lower()
+    if not any(marker in lowered for marker in _VOLATILE_MARKERS):
+        return normalized
+    normalized = _NUMBER.sub("<number>", normalized)
+    return re.sub(r"\\s+", " ", normalized).strip()
+
+
 def main() -> int:
     actual = _read(sys.argv[1])
     expected = _read(sys.argv[2])
     actual_values = _parse(actual)
     expected_values = _parse(expected)
     if actual_values is None or expected_values is None:
-        if actual.strip() == expected.strip():
+        actual_lines = [_normalize_text_line(line) for line in actual.strip().splitlines()]
+        expected_lines = [
+            _normalize_text_line(line) for line in expected.strip().splitlines()
+        ]
+        if actual_lines == expected_lines:
             return 0
-        print("output mismatch", file=sys.stderr)
+        print("text output mismatch", file=sys.stderr)
         return 1
 
     actual_filtered = {
@@ -239,7 +275,13 @@ class ProjectBootstrapService:
             )
         emit("finish", "specs", f"{len(generated)} files" if generated else "skipped")
 
-        scaled_files = await self._prepare_benchmark_scale(root, layout, contract, emit)
+        scaled_files = await self._prepare_benchmark_scale(
+            root,
+            layout,
+            contract,
+            emit,
+            language=selected_language.value,
+        )
         if scaled_files:
             generated = (*generated, *scaled_files)
 
@@ -626,6 +668,7 @@ class ProjectBootstrapService:
         layout: ProjectLayout,
         contract: ProjectContract,
         emit: Callable[..., None],
+        language: str = "python",
     ) -> tuple[str, ...]:
         """Point the benchmark at a repeating harness before the bootstrap commit.
 
@@ -638,10 +681,57 @@ class ProjectBootstrapService:
 
         if not contract.benchmark_harness.strip():
             return ()
+        spec_path = layout.benchmark_spec_path
+        harness_name = "harness.cpp" if language == "cpp" else "harness.py"
+        harness = spec_path.parent / harness_name
+        try:
+            raw = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            return ()
+        if not isinstance(raw, dict):
+            return ()
         issue: str | None = None
         discovery: ContractDiscoveryService | None = None
+        command: list[object] | None = None
         for _ in range(2):
-            issue = benchmark_harness_issue(contract.benchmark_harness)
+            issue = benchmark_harness_issue(contract.benchmark_harness, language=language)
+            if issue is None:
+                harness.parent.mkdir(parents=True, exist_ok=True)
+                harness.write_text(
+                    contract.benchmark_harness.strip() + "\n",
+                    encoding="utf-8",
+                )
+                if language == "cpp":
+                    compiled = await build_cpp_benchmark_harness(
+                        root,
+                        sandbox_runner=self._context.language_registry.sandbox_runner,
+                    )
+                    if compiled.succeeded:
+                        harness_command = (str(benchmark_harness_executable(root)),)
+                    else:
+                        detail = compiled.stderr.decode(errors="replace").strip()
+                        issue = (
+                            "benchmarkHarness failed to compile: "
+                            f"{detail or 'unknown compiler error'}"
+                        )
+                        harness_command = ()
+                else:
+                    raw_command = raw.get("run_command")
+                    if not isinstance(raw_command, list) or not raw_command:
+                        issue = "benchmark run command is unavailable for the harness"
+                        harness_command = ()
+                    else:
+                        command = raw_command
+                        harness_command = (
+                            str(raw_command[0]),
+                            harness.relative_to(root).as_posix(),
+                        )
+            else:
+                harness_command = ()
+            if issue is None:
+                rounds = await self._calibrate_harness(root, harness_command)
+                if rounds is None:
+                    issue = "benchmarkHarness calibration failed"
             if issue is None:
                 break
             if discovery is None:
@@ -651,16 +741,16 @@ class ProjectBootstrapService:
                 contract,
                 root=root,
                 failure=issue,
+                language=language,
             )
             if repaired.benchmark_harness == contract.benchmark_harness:
                 break
             contract = repaired
         if issue is not None:
             emit("note", "specs", f"Discarding untrusted benchmarkHarness: {issue}")
+            harness.unlink(missing_ok=True)
             return ()
-        spec_path = layout.benchmark_spec_path
-        harness = spec_path.parent / "harness.py"
-        harness.write_text(contract.benchmark_harness.strip() + "\n", encoding="utf-8")
+        contract = _sanitize_contract(contract, root, language)
         layout.contract_path.write_text(
             json.dumps(
                 contract.model_dump(by_alias=True, mode="json"),
@@ -671,23 +761,14 @@ class ProjectBootstrapService:
             + "\n",
             encoding="utf-8",
         )
-        try:
-            raw = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError):
-            return ()
-        if not isinstance(raw, dict):
-            return ()
-        command = raw.get("run_command")
-        if not isinstance(command, list) or not command:
-            return ()
-        rounds = await self._calibrate_harness(root, harness, str(command[0]))
-        if rounds is None:
-            return ()
-        scaled_command = _harness_command(
-            command,
-            harness.relative_to(root).as_posix(),
-            rounds,
-        )
+        if language == "cpp":
+            scaled_command = benchmark_harness_command(rounds)
+        else:
+            scaled_command = _harness_command(
+                command or [],
+                harness.relative_to(root).as_posix(),
+                rounds,
+            )
         if scaled_command is None:
             return ()
         raw["run_command"] = scaled_command
@@ -700,8 +781,7 @@ class ProjectBootstrapService:
     async def _calibrate_harness(
         self,
         root: Path,
-        harness: Path,
-        interpreter: str,
+        command_prefix: tuple[str, ...],
     ) -> int | None:
         """Pick a fixed repeat count that lands near the target duration.
 
@@ -715,15 +795,41 @@ class ProjectBootstrapService:
         would add more variance than it removes.
         """
 
-        relative = harness.relative_to(root).as_posix()
-        low = await self._run_probe(root, (interpreter, relative, str(CALIBRATION_ROUNDS)))
-        high = await self._run_probe(
+        await self._run_probe(
             root,
-            (interpreter, relative, str(CALIBRATION_ROUNDS * CALIBRATION_STEPS)),
+            (*command_prefix, str(CALIBRATION_ROUNDS)),
         )
-        if low is None or high is None:
+        low_samples: list[float] = []
+        high_samples: list[float] = []
+        high_rounds = CALIBRATION_ROUNDS * CALIBRATION_STEPS
+        for _ in range(CALIBRATION_SAMPLES):
+            low = await self._run_probe(
+                root,
+                (*command_prefix, str(CALIBRATION_ROUNDS)),
+            )
+            high = await self._run_probe(
+                root,
+                (*command_prefix, str(high_rounds)),
+            )
+            if low is not None:
+                low_samples.append(low)
+            if high is not None:
+                high_samples.append(high)
+        if len(low_samples) < 2 or len(high_samples) < 2:
             return None
-        per_round = (high - low) / (CALIBRATION_ROUNDS * (CALIBRATION_STEPS - 1))
+        low = statistics.median(low_samples)
+        high = statistics.median(high_samples)
+        if high <= low:
+            escalated_rounds = high_rounds * CALIBRATION_STEPS
+            escalated = await self._run_probe(
+                root,
+                (*command_prefix, str(escalated_rounds)),
+            )
+            if escalated is None or escalated <= low:
+                return None
+            high = escalated
+            high_rounds = escalated_rounds
+        per_round = (high - low) / (high_rounds - CALIBRATION_ROUNDS)
         if per_round <= 0:
             return None
         return max(CALIBRATION_ROUNDS, int(TARGET_BENCHMARK_SECONDS / per_round))
@@ -1164,6 +1270,7 @@ MIN_SCALING_INPUTS = 2
 TARGET_BENCHMARK_SECONDS = 0.5
 CALIBRATION_ROUNDS = 200
 CALIBRATION_STEPS = 4
+CALIBRATION_SAMPLES = 3
 
 
 def _harness_command(

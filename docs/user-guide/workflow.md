@@ -21,11 +21,11 @@ runtime 校验后写入 `.algocode/benchmarks/benchmark.yaml` 的 `inputs`（每
 `size` 和 `input`）。不足两个合法规模时不会写入；如果多规模基准跑不通，
 bootstrap 会自动回退到单输入并重试，不会因此失败。
 
-如果 Baseline Benchmark 的单次运行过短（中位数低于 0.15 秒，说明测量被解释器启动开销
-主导），而契约里带了 `benchmarkHarness`（模型产出的、在同一进程内重复调用入口的
-脚本），runtime 会写入 `.algocode/benchmarks/harness.py`，用一次校准定下**固定**的
-重复轮数（目标约 0.5 秒），改写 `run_command` 后重测基线。轮数固定而非自适应，
-否则每次测量做的功不同，反而引入新的方差。没有 harness 时保持原样。
+如果契约里带了 `benchmarkHarness`，runtime 会为 Python 写入
+`.algocode/benchmarks/harness.py`，为单文件 C++ 项目写入并编译
+`.algocode/benchmarks/harness.cpp`。随后用两次探测校准一个**固定**重复轮数
+（目标约 0.5 秒），并改写 `run_command`。轮数固定而非自适应，否则每次测量做的
+功不同，反而引入新的方差。没有 harness 时保持原样。
 
 输出包括：
 

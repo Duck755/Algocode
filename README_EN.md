@@ -62,6 +62,39 @@ Beyond single-pass optimization, Algocode supports multi-candidate search. When 
 - **Replaceable models.** Different model providers reuse the same contract, validation, benchmark, and candidate lifecycle.
 - **Complete evidence chains.** Contract, Correctness, Benchmark, Decision, Report, model logs, and candidate records are persisted for audit and reproduction.
 
+## Optimization Case: Redis SDS Bulk Append
+
+This example uses Redis SDS (Simple Dynamic String) to show how Algocode optimizes a hot string-append path while preserving byte-for-byte output behavior.
+
+The workload appends 100,000 lines through `sdscatprintf(s, "line %d: hello world\\n", i)`. The format is simple, but the original implementation still enters libc `vsnprintf` for every append.
+
+### Before Optimization
+
+Code: [Before Optimization](docs/code/%E4%BC%98%E5%8C%96%E5%89%8D.cpp)
+
+Even for a simple format, the original path computes a temporary buffer size, copies the `va_list`, calls `vsnprintf`, and retries after growing the buffer if the output might have been truncated.
+
+### After Optimization
+
+The optimized version adds a fast path for a restricted format subset. It handles only literals, `%%`, `%d`, and `%s`, validating the format, counting the result, and emitting into a fixed stack buffer in one pass. If the result exceeds that buffer, it computes the exact size, grows the SDS once, and writes directly. Formats with flags, width, precision, or length modifiers still fall back to `vsnprintf`.
+
+Code: [After Optimization](docs/code/%E4%BC%98%E5%8C%96%E5%90%8E.cpp)
+
+| Item | Before | After |
+|---|---|---|
+| Simple formats | Always call `vsnprintf` | Fast path for `%d`, `%s`, and `%%` |
+| Stack output | Format, then append | Validate, count, and emit in one pass |
+| Large output | Repeated growth and reformatting | Exact size, one growth, then write |
+| Complex formats | Use `vsnprintf` | Preserve the `vsnprintf` fallback |
+| Observable behavior | Match libc formatting | Preserved byte for byte |
+
+Algocode generates this candidate in an isolated Git worktree and verifies it through Correctness, Contract, and Benchmark:
+
+- The reference implementation and candidate agree on fixed formats, boundary inputs, and error paths.
+- The bytes, length, and observable SDS fields produced by `sdscatprintf` remain unchanged.
+- Benchmark measures the real bulk-append workload instead of relying on model judgment.
+- The user reviews the Review, Diff, and evidence before deciding whether to run `apply`.
+
 ## Performance and Results Notice
 
 Algocode uses large language models to analyze source code and generate candidate optimizations. Performance may improve, remain unchanged, or regress. Results depend on source quality, project structure, model capability, input size, runtime environment, and system load.
@@ -96,11 +129,12 @@ Optional enhancements:
 
 ### Code Requirements
 
-- The project to optimize should be a Git repository with an entry point that can be built and run directly.
+- The project to optimize should be a Git repository with an entry point that can be built and run directly. Git is not strictly required because Algocode automatically runs `git init` when it detects that the project is not a repository.
 - Python and C++ are supported; the project should provide a clear program or test entry point.
 - Inputs, outputs, exit codes, and key behaviors should be reliably reproducible so that Correctness and Benchmark checks can be established.
 - Avoid dependencies on unavailable private data, network services, or non-reproducible environments; complex dependencies should be configured in advance.
 - The code should have a clear optimization goal, such as reducing time complexity, lowering memory usage, or improving hot-path performance.
+- In short, place the code in a standalone folder with no external dependencies or makefile, ensure it can be compiled and run with any compiler, and provide clear inputs and deterministic outputs (not random values). Such code is suitable for optimization.
 
 ### CLI
 

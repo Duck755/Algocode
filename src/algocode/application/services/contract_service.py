@@ -120,6 +120,7 @@ class ContractDiscoveryService:
             sort_keys=True,
         )
         contract_test_instruction = _contract_test_instruction(language)
+        benchmark_harness_instruction = _benchmark_harness_instruction(language)
         request = ModelRequest(
             request_id=f"req_{uuid4().hex}",
             model=model,
@@ -171,22 +172,7 @@ class ContractDiscoveryService:
                         "must not be so large that a run takes more than a few seconds. Leave "
                         "benchmarkScaling empty when the program does not read stdin or when "
                         "you cannot construct valid inputs.\n\n"
-                        "Most of these programs finish their real workload in microseconds while "
-                        "starting the interpreter costs tens of milliseconds, so timing the whole "
-                        "process measures start-up instead of the code. When the module exposes "
-                        "lower-level public APIs, populate benchmarkHarness with one complete, "
-                        "self-contained Python script that imports the module once, builds a "
-                        "deterministic set of multiple input cases, and exercises those APIs with "
-                        "varying inputs on every iteration. Do not repeat one identical "
-                        "deterministic call with the same constant arguments, because that lets a "
-                        "global result cache replace the measured work. Prefer direct calls to "
-                        "core public APIs over repeatedly calling one fixed workload wrapper. "
-                        "The script must take the iteration count from sys.argv[1], default to "
-                        "1000, read nothing from stdin, print exactly one line of the form "
-                        "'rounds=<n> workload=<seconds>s', and exit 0. Set a module into "
-                        "sys.modules before exec_module when loading by path. Leave "
-                        "benchmarkHarness empty for other languages, or when no suitable public "
-                        "APIs exist.\n\n"
+                        f"{benchmark_harness_instruction}\n\n"
                         f"Language: {language}\n\nProject snapshot:\n{snapshot}\n\n"
                         f"JSON schema:\n{schema}"
                     ),
@@ -311,6 +297,7 @@ class ContractDiscoveryService:
         *,
         root: str | Path,
         failure: str,
+        language: str = "python",
     ) -> ProjectContract:
         project_root = Path(root).resolve()
         try:
@@ -320,6 +307,7 @@ class ContractDiscoveryService:
             )
         except ProviderError:
             return contract
+        repair_instruction = _benchmark_harness_repair_instruction(language)
         request = ModelRequest(
             request_id=f"req_{uuid4().hex}",
             model=model,
@@ -328,10 +316,8 @@ class ContractDiscoveryService:
                 Message(
                     role="user",
                     content=(
-                        "Repair benchmarkHarness below. It must vary input on every "
-                        "iteration and must not repeatedly call one deterministic "
-                        "entrypoint with identical constant arguments. Prefer direct "
-                        "calls to the core public APIs over a fixed workload wrapper. "
+                        "Repair benchmarkHarness below. "
+                        f"{repair_instruction} "
                         "Keep it self-contained, deterministic, and compatible with "
                         "the existing contract. Return JSON only with one field: "
                         '{"benchmarkHarness": "..."}.\n\n'
@@ -553,6 +539,60 @@ def _repair_contract_test_instruction(language: str) -> str:
     )
 
 
+def _benchmark_harness_instruction(language: str) -> str:
+    if language == "cpp":
+        return (
+            "When this is a single-file C++17 project whose root implementation file "
+            "defines main, populate benchmarkHarness with one complete C++17 harness. "
+            "The harness must define main as algocode_original_main before including the "
+            "root implementation source by filename, undefine main, and then define its "
+            "own int main(int argc, char** argv). Parse the round count from argv[1] with "
+            "a default of 1000, build deterministic varying inputs, and repeatedly exercise "
+            "the core public APIs in a loop. Print exactly one line of the form "
+            "'rounds=<n> workload=<seconds>s' and exit 0. The harness must be self-contained, "
+            "compile with C++17, read nothing from stdin, and use no network. Leave "
+            "benchmarkHarness empty for multi-file C++ projects or when the implementation "
+            "cannot be safely included in one translation unit.\n\n"
+        )
+    return (
+        "For Python projects, most programs finish their real workload in microseconds "
+        "while starting the interpreter costs tens of milliseconds, so timing the whole "
+        "process measures start-up instead of the code. When the module exposes "
+        "lower-level public APIs, populate benchmarkHarness with one complete, "
+        "self-contained Python script that imports the module once, builds a "
+        "deterministic set of multiple input cases, and exercises those APIs with "
+        "varying inputs on every iteration. Do not repeat one identical deterministic "
+        "call with the same constant arguments, because that lets a global result cache "
+        "replace the measured work. Prefer direct calls to core public APIs over "
+        "repeatedly calling one fixed workload wrapper. The script must take the "
+        "iteration count from sys.argv[1], default to 1000, read nothing from stdin, "
+        "print exactly one line of the form 'rounds=<n> workload=<seconds>s', and exit "
+        "0. Set a module into sys.modules before exec_module when loading by path. "
+        "Leave benchmarkHarness empty for other languages, or when no suitable public "
+        "APIs exist.\n\n"
+    )
+
+
+def _benchmark_harness_repair_instruction(language: str) -> str:
+    if language == "cpp":
+        return (
+            "Return C++17 source for a single-file project. It must vary input on every "
+            "iteration and must not repeatedly call one deterministic function with identical "
+            "constant arguments. Define main as algocode_original_main, include the root "
+            "implementation source by filename, undefine main, and define its own "
+            "int main(int argc, char** argv). Parse rounds from argv[1] with a default of "
+            "1000, call core public APIs directly, print exactly one line of the form "
+            "'rounds=<n> workload=<seconds>s', and exit 0. The source must compile as a "
+            "single translation unit with C++17 and must not read stdin or use network access."
+        )
+    return (
+        "It must vary input on every iteration and must not repeatedly call one "
+        "deterministic entrypoint with identical constant arguments. Prefer direct calls "
+        "to the core public APIs over a fixed workload wrapper. Keep it self-contained, "
+        "deterministic, Python, and compatible with the existing contract."
+    )
+
+
 def contract_to_objective(
     contract: ProjectContract,
     *,
@@ -647,11 +687,13 @@ def _source_snapshot(root: Path) -> str:
     return "".join(chunks)
 
 
-def benchmark_harness_issue(source: str) -> str | None:
+def benchmark_harness_issue(source: str, *, language: str = "python") -> str | None:
     """Reject harnesses whose fixed loop can be replaced by one cached result."""
 
     if not source.strip():
         return None
+    if language == "cpp":
+        return _cpp_benchmark_harness_issue(source)
     try:
         tree = ast.parse(source)
     except SyntaxError as exc:
@@ -677,6 +719,19 @@ def benchmark_harness_issue(source: str) -> str | None:
                     f"benchmarkHarness repeatedly calls {name} with constant arguments "
                     "inside a loop; vary inputs or call lower-level APIs instead"
                 )
+    return None
+
+
+def _cpp_benchmark_harness_issue(source: str) -> str | None:
+    required_markers = (
+        ("#define main ", "define main as algocode_original_main before including source"),
+        ('#include "', "include the root implementation source by filename"),
+        ("#undef main", "undefine main before defining the harness entrypoint"),
+        ("int main(", "define the harness int main entrypoint"),
+    )
+    for marker, description in required_markers:
+        if marker not in source:
+            return f"benchmarkHarness must {description}; missing {marker!r}"
     return None
 
 

@@ -18,7 +18,7 @@ It:
 
 If the entry point reads from stdin, Contract Discovery can also produce a family of increasing-size inputs. After validation, the runtime writes them to `.algocode/benchmarks/benchmark.yaml` under `inputs`.
 
-If a baseline run is too short because interpreter startup dominates the measurement, and the Contract contains a `benchmarkHarness`, Algocode writes `.algocode/benchmarks/harness.py` and calibrates a fixed repeat count near a target duration. Fixed is intentional: an adaptive count would make each sample perform different work and add variance.
+When the Contract contains a `benchmarkHarness`, Algocode writes `.algocode/benchmarks/harness.py` for Python and writes and compiles `.algocode/benchmarks/harness.cpp` for single-file C++ projects. It then calibrates a fixed repeat count near a target duration. Fixed is intentional: an adaptive count would make each sample perform different work and add variance.
 
 Generated outputs include:
 

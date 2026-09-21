@@ -41,6 +41,7 @@ from algocode.domain.model import (
     TaskId,
 )
 from algocode.languages import LanguageRegistry
+from algocode.languages.cpp import CppLanguageAdapter
 from algocode.languages.types import BuildProfile, BuildResult
 from algocode.ports import ArtifactStore, EventStore
 from algocode.runtime.locks import FileResourceLock
@@ -673,6 +674,16 @@ class BenchmarkService:
         build_result: BuildResult = await adapter.build(workspace, profile)
         if not build_result.succeeded:
             raise BenchmarkError(f"benchmark build exited with {build_result.exit_code}")
+        if isinstance(adapter, CppLanguageAdapter) and any(
+            "benchmark_harness" in token for token in spec.run_command
+        ):
+            harness_result = await adapter.build_benchmark_harness(workspace)
+            if not harness_result.succeeded:
+                detail = harness_result.stderr.decode(errors="replace").strip()
+                raise BenchmarkError(
+                    "benchmark harness build exited with "
+                    f"{harness_result.exit_code}: {detail or 'unknown error'}"
+                )
         run_command = spec.run_command or build_result.run_command
         if not run_command and build_result.executable is not None:
             run_command = (str(build_result.executable),)

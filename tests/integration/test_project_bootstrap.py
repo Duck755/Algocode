@@ -2,17 +2,24 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
+
+import yaml
 
 from algocode.application.services.contract_service import (
     ContractDiscoveryService,
     ProjectContract,
     PublicApiItem,
 )
-from algocode.application.services.project_bootstrap_service import ProjectBootstrapService
+from algocode.application.services.project_bootstrap_service import (
+    _CHECKER_SOURCE,
+    ProjectBootstrapService,
+)
 from algocode.bootstrap import build_context
 from algocode.domain.model import TaskPhase
 from algocode.tools import build_default_registry
@@ -20,6 +27,30 @@ from algocode.tools.types import ToolContext
 
 
 class ProjectBootstrapTests(unittest.IsolatedAsyncioTestCase):
+    async def test_generated_checker_ignores_volatile_text_lines(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checker = root / "check.py"
+            actual = root / "actual.txt"
+            expected = root / "expected.txt"
+            checker.write_text(_CHECKER_SOURCE, encoding="utf-8")
+            actual.write_text(
+                "escape 耗时: 0.512 ms\n往返正确性: PASS\n",
+                encoding="utf-8",
+            )
+            expected.write_text(
+                "escape 耗时: 1.505 ms\n往返正确性: PASS\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [sys.executable, str(checker), str(actual), str(expected)],
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     async def test_project_cache_uses_global_provider_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -188,6 +219,22 @@ int main() { std::printf(\"value=42\\n\"); return 0; }
                     "  return 0;\n"
                     "}\n"
                 ),
+                benchmark_harness=(
+                    "#define main algocode_original_main\n"
+                    '#include "test.cpp"\n'
+                    "#undef main\n"
+                    "int main(int argc, char** argv) {\n"
+                    "  int rounds = argc > 1 ? std::atoi(argv[1]) : 1000;\n"
+                    "  SPSCRingBuffer buffer;\n"
+                    "  std::uint32_t value = 0;\n"
+                    "  for (int i = 0; i < rounds; ++i) {\n"
+                    "    buffer.push(static_cast<std::uint32_t>(i));\n"
+                    "    if (!buffer.pop(value)) return 4;\n"
+                    "  }\n"
+                    '  std::printf("rounds=%d workload=0.000000s value=%u\\n", rounds, value);\n'
+                    "  return 0;\n"
+                    "}\n"
+                ),
                 confidence=1.0,
             )
             context = build_context(project_root=root)
@@ -196,7 +243,12 @@ int main() { std::printf(\"value=42\\n\"); return 0; }
                 "discover",
                 new=AsyncMock(return_value=contract),
             ):
-                result = await ProjectBootstrapService(context).run(root)
+                with patch.object(
+                    ProjectBootstrapService,
+                    "_calibrate_harness",
+                    new=AsyncMock(return_value=1),
+                ):
+                    result = await ProjectBootstrapService(context).run(root)
 
             self.assertIsNotNone(result.correctness)
             self.assertTrue(result.correctness.passed)
@@ -206,6 +258,13 @@ int main() { std::printf(\"value=42\\n\"); return 0; }
             self.assertFalse((root / ".algocode" / "oracle" / "contract_test.py").exists())
             self.assertTrue((root / ".algocode" / "oracle" / "reference" / "test.cpp").is_file())
             self.assertTrue((root / ".algocode" / "benchmarks" / "benchmark.yaml").is_file())
+            self.assertTrue((root / ".algocode" / "benchmarks" / "harness.cpp").is_file())
+            benchmark_spec = yaml.safe_load(
+                (root / ".algocode" / "benchmarks" / "benchmark.yaml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertIn("benchmark_harness", benchmark_spec["run_command"][0])
             saved_contract = json.loads(
                 (root / ".algocode" / "contract.json").read_text(encoding="utf-8")
             )

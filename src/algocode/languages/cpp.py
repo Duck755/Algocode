@@ -117,6 +117,12 @@ class CppLanguageAdapter:
             sandbox_runner=self._sandbox_runner,
         )
 
+    async def build_benchmark_harness(self, workspace: Path) -> BuildResult:
+        return await build_cpp_benchmark_harness(
+            workspace,
+            sandbox_runner=self._sandbox_runner,
+        )
+
 
 async def run_cpp_contract_test(
     workspace: Path,
@@ -240,6 +246,83 @@ async def run_cpp_contract_test(
 
 def _build_dir(workspace: Path) -> Path:
     return workspace / ".algocode" / "cache" / "build"
+
+
+def benchmark_harness_path(workspace: Path) -> Path:
+    return workspace.resolve() / ".algocode" / "benchmarks" / "harness.cpp"
+
+
+def benchmark_harness_executable(workspace: Path) -> Path:
+    name = "benchmark_harness.exe" if os.name == "nt" else "benchmark_harness"
+    return _build_dir(workspace.resolve()) / name
+
+
+def benchmark_harness_command(rounds: int) -> list[str]:
+    name = "benchmark_harness.exe" if os.name == "nt" else "benchmark_harness"
+    executable = (Path(".algocode") / "cache" / "build" / name).as_posix()
+    return ["{workspace}/" + executable, str(rounds)]
+
+
+async def build_cpp_benchmark_harness(
+    workspace: Path,
+    *,
+    sandbox_runner=None,
+    timeout_seconds: int = 120,
+) -> BuildResult:
+    root = workspace.resolve()
+    harness = benchmark_harness_path(root)
+    executable = benchmark_harness_executable(root)
+    compiler = shutil.which("g++") or shutil.which("clang++")
+    if compiler is None:
+        return BuildResult(
+            language=Language.CPP,
+            commands=(),
+            exit_code=1,
+            duration_seconds=0.0,
+            stderr=b"no C++ compiler was found on PATH",
+        )
+    if not harness.is_file():
+        return BuildResult(
+            language=Language.CPP,
+            commands=(),
+            exit_code=1,
+            duration_seconds=0.0,
+            stderr=b"benchmark harness source was not found",
+        )
+    executable.parent.mkdir(parents=True, exist_ok=True)
+    commands = (
+        (
+            compiler,
+            "-std=c++17",
+            "-O2",
+            "-pthread",
+            "-I",
+            str(root),
+            str(harness),
+            "-o",
+            str(executable),
+        ),
+    )
+    results = await run_commands(
+        commands,
+        cwd=root,
+        timeout_seconds=timeout_seconds,
+        sandbox_runner=sandbox_runner,
+    )
+    stderr = b"".join(result.stderr for result in results)
+    exit_code = results[-1].exit_code if results else 1
+    built = executable if exit_code == 0 and executable.is_file() else None
+    return BuildResult(
+        language=Language.CPP,
+        commands=commands,
+        exit_code=exit_code,
+        duration_seconds=sum(result.duration_seconds for result in results),
+        stdout=b"".join(result.stdout for result in results),
+        stderr=stderr,
+        diagnostics=_parse_diagnostics(stderr),
+        executable=built,
+        run_command=(str(built),) if built is not None else (),
+    )
 
 
 def _default_commands(workspace: Path, source_root: Path) -> tuple[tuple[str, ...], ...]:
