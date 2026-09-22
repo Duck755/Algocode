@@ -1,6 +1,6 @@
 # Algocode 项目结构说明
 
-本文档完整描述 Algocode 仓库的源码、测试、VS Code 扩展、构建配置和运行时数据布局。
+本文档完整描述 Algocode 仓库的源码、测试、VS Code 扩展、官网、构建配置和运行时数据布局。
 
 ---
 
@@ -10,25 +10,28 @@
 Algocode/
 ├── .github/
 │   └── workflows/
+│       ├── deploy-pages.yml       # 构建 website 并发布到 GitHub Pages
 │       ├── publish.yml            # 主 PyPI 发布工作流
 │       └── python-publish.yml     # 备用/历史 Python 发布工作流
 ├── docker/
 │   └── sandbox.Dockerfile         # Docker 沙箱镜像定义
 ├── docs/
-│   └── picture/
-│       ├── algocode_icon.jpg      # README/文档图标 JPG
-│       └── algocode_icon.png      # README/文档图标 PNG
+│   ├── code/
+│   │   ├── 优化前.cpp              # README 优化前源码
+│   │   └── 优化后.cpp              # README 优化后源码
+│   ├── en/                        # MkDocs 英文文档
+│   ├── picture/                   # README 与文档截图
+│   └── ...                        # 中文用户指南、参考文档和更新日志
 ├── extensions/
 │   └── vscode/                    # VS Code 扩展源码与安装包
+├── site/                          # MkDocs 文档构建产物
 ├── src/
 │   └── algocode/                  # Python 主包
 ├── tests/                         # 单元、集成、契约测试
-├── img.png                        # README 使用示例图片
-├── img_1.png                      # README Provider 示例图片
-├── img_2.png                      # README init 示例图片
-├── img_3.png                      # README optimize 示例图片
+├── website/                       # React + Vite 官网源码
 ├── LICENSE                        # MIT License
 ├── README.md                      # 项目主说明
+├── README_EN.md                   # 英文 README
 ├── PROJECT_STRUCTURE.md           # 本文档
 ├── pyproject.toml                 # Python 包元数据、依赖、工具配置
 └── mkdocs.yml                     # 文档站点配置
@@ -44,6 +47,8 @@ src/algocode/
 ├── __main__.py                    # python -m algocode 入口
 ├── bootstrap.py                   # 组装 AppContext：数据库、服务、Provider、工具
 ├── project_layout.py              # .algocode 目录布局定义
+├── process_output.py              # 跨平台子进程输出解码
+├── reproducibility.py             # 确定性 seed 派生
 ├── structured_output.py           # 模型 JSON 提取、Schema 解析与截断修复
 ├── acceptance/                    # 验收测试与发布门禁支撑
 ├── application/                   # 应用服务层
@@ -79,6 +84,8 @@ src/algocode/
 ├── __main__.py                    # 调用 algocode.cli.main:main
 ├── bootstrap.py                   # 创建 AppContext，连接所有服务
 ├── project_layout.py              # config、oracle、benchmark、cache 路径
+├── process_output.py              # 子进程编码探测与统一解码
+├── reproducibility.py             # 基于全局 seed 派生组件级确定性 seed
 └── structured_output.py           # JSON 对象提取、Markdown fence 处理、Pydantic 校验
 ```
 
@@ -145,6 +152,9 @@ cli/
 ├── main.py                        # Typer 根命令注册
 ├── context.py                     # 解析 task/candidate/data-dir
 ├── output.py                      # 人类可读输出与 --json
+├── live_progress.py               # 实时阶段与 Tool 进度渲染
+├── progress.py                    # 事件轮询与进度模型
+├── tui.py                         # 交互式终端选择器
 └── commands/
     ├── __init__.py
     ├── accept.py                  # algocode accept
@@ -158,6 +168,7 @@ cli/
     ├── doctor.py                  # 环境检查
     ├── eval.py                    # eval run
     ├── experiment.py              # experiment list/show
+    ├── gc.py                      # 清理过期运行数据
     ├── gate.py                    # gate run
     ├── init.py                    # algocode init
     ├── model.py                   # 选择默认模型
@@ -240,7 +251,7 @@ eval/
 ```text
 languages/
 ├── __init__.py
-├── cpp.py                         # C++ 编译、运行、Contract Test
+├── cpp.py                         # C++ 编译、Contract Test、单文件 Benchmark Harness
 ├── discovery.py                   # 源码文件发现
 ├── python.py                      # Python 执行与 Contract Test
 ├── registry.py                    # LanguageRegistry
@@ -277,7 +288,9 @@ providers/
 ├── errors.py                      # ProviderError
 ├── factory.py                     # 根据配置构建 Provider
 ├── fake.py                        # 测试用 FakeProvider
+├── model_catalog.py               # 模型列表拉取与合并
 ├── openai_compatible.py           # OpenAI-compatible API 适配
+├── responses.py                   # OpenAI Responses API 适配
 └── types.py                       # Message、ToolCall、ModelResponse
 ```
 
@@ -347,6 +360,7 @@ storage/
         ├── candidate_projection.py
         ├── correctness_projection.py
         ├── decision_projection.py
+        ├── experiment_projection.py
         ├── project_projection.py
         └── task_projection.py
 ```
@@ -361,12 +375,23 @@ tools/
 └── builtins/
     ├── __init__.py
     ├── actions.py                  # run_correctness、run_benchmark 等动作工具
+    ├── shell.py                    # run_shell 工具
     └── filesystem.py               # read_file、edit_file、write_file、apply_patch
 
 workspace/
 ├── __init__.py
 ├── git.py                         # GitRepository、Snapshot、Worktree、Apply、Rollback
 └── types.py                       # Workspace、WorkspaceKind、ApplyResult
+```
+
+### `profiling/`
+
+```text
+profiling/
+├── __init__.py
+├── adapters.py                    # Python / C++ Profiler 适配
+├── service.py                     # 性能分析编排与结果记录
+└── types.py                       # ProfileReport / ProfileSample
 ```
 
 ### `report/` 与 `observability/`
@@ -394,6 +419,7 @@ tests/
 │   ├── __init__.py
 │   ├── test_acceptance_gate.py
 │   ├── test_agent_runtime.py
+│   ├── test_agent_runtime_multi_candidate.py
 │   ├── test_baseline_service.py
 │   ├── test_benchmark_service.py
 │   ├── test_cli_api_model.py
@@ -433,15 +459,22 @@ tests/
     ├── domain/
     ├── languages/
     ├── policy/
+    ├── profiling/
     ├── providers/
     ├── resources/
     ├── runtime/
     ├── sandbox/
     ├── security/
     ├── tools/
+    ├── test_api_config.py
+    ├── test_cli_init_experience.py
+    ├── test_cli_optimize_progress.py
     ├── test_doctor.py
     ├── test_paths.py
+    ├── test_process_output.py
     ├── test_project_service.py
+    ├── test_progress.py
+    ├── test_reproducibility.py
     ├── test_status_progress.py
     ├── test_task_service.py
     └── test_vscode_command.py
@@ -452,14 +485,24 @@ tests/
 ```text
 tests/unit/
 ├── acceptance/test_matrix.py
+├── application/test_benchmark_cache.py
+├── application/test_bootstrap_scaling.py
+├── application/test_candidate_reopen.py
 ├── application/test_decision_policy.py
+├── application/test_decision_service.py
+├── application/test_experiment_service.py
+├── application/test_maintenance_service.py
+├── application/test_project_state.py
+├── application/test_search_archive_service.py
 ├── approval/test_service.py
 ├── benchmark/test_engine.py
 ├── benchmark/test_environment.py
 ├── benchmark/test_locks.py
 ├── benchmark/test_spec.py
+├── benchmark/test_types.py
 ├── config/test_loader.py
 ├── context/test_builder.py
+├── context/test_estimator.py
 ├── correctness/test_engine.py
 ├── correctness/test_protected.py
 ├── correctness/test_spec.py
@@ -467,9 +510,12 @@ tests/unit/
 ├── domain/test_models.py
 ├── languages/test_adapters.py
 ├── policy/test_engine.py
+├── profiling/test_adapters.py
 ├── providers/test_anthropic.py
 ├── providers/test_fake.py
+├── providers/test_model_catalog.py
 ├── providers/test_openai_compatible.py
+├── providers/test_responses.py
 ├── resources/test_local.py
 ├── runtime/test_analysis.py
 ├── runtime/test_contract_service.py
@@ -477,12 +523,29 @@ tests/unit/
 ├── runtime/test_model_log.py
 ├── runtime/test_optimization_record.py
 ├── runtime/test_planning.py
+├── runtime/test_refinement.py
+├── runtime/test_search_guards.py
 ├── runtime/test_structured_output.py
 ├── runtime/test_task_lock.py
 ├── sandbox/test_local.py
 ├── sandbox/test_runner.py
 ├── security/test_credentials.py
-└── tools/test_registry.py
+├── test_api_config.py
+├── test_cli_init_experience.py
+├── test_cli_optimize_progress.py
+├── test_doctor.py
+├── test_paths.py
+├── test_process_output.py
+├── test_progress.py
+├── test_project_service.py
+├── test_reproducibility.py
+├── test_status_progress.py
+├── test_task_service.py
+├── test_vscode_command.py
+└── tools/
+    ├── test_read_file_errors.py
+    ├── test_registry.py
+    └── test_shell.py
 ```
 
 ---
@@ -505,6 +568,8 @@ extensions/vscode/
 └── tsconfig.json                  # TypeScript 配置
 ```
 
+`node_modules/` 与 `out/` 属于依赖安装或构建产物，不纳入源码维护范围。
+
 `extension.ts` 负责：
 
 - 右键子菜单 `Algocode`
@@ -524,12 +589,38 @@ extensions/vscode/
 
 ```text
 .github/workflows/
+├── deploy-pages.yml               # 构建 website/ 并发布到 gh-pages
 ├── publish.yml                    # tag/release 触发 PyPI 发布
 └── python-publish.yml             # 备用 Python 发布工作流
 
 docker/
 └── sandbox.Dockerfile             # 可构建的沙箱镜像
 ```
+
+`deploy-pages.yml` 使用 Node 20 构建 React/Vite 官网，并将 `website/dist` 发布到 `gh-pages` 分支。
+
+---
+
+## 官网 `website/`
+
+```text
+website/
+├── public/
+│   └── algocode_icon.png          # 静态图标
+├── src/
+│   ├── App.jsx                    # 官网页面与交互
+│   ├── Docs.jsx                   # 文档浏览页面
+│   ├── siteCopy.js                # 中英文页面文案
+│   ├── main.jsx                   # React 入口
+│   ├── index.css                  # 页面样式
+│   └── docs.css                   # 文档样式
+├── index.html                     # Vite HTML 入口
+├── package.json                   # React、Vite、Mermaid 依赖与脚本
+├── package-lock.json              # npm 依赖锁文件
+└── vite.config.js                 # 本地开发与 Base 路径配置
+```
+
+`site/` 是 MkDocs 生成的静态输出；`website/dist/` 和两个目录下的 `node_modules/` 均为构建产物，不纳入源码结构。
 
 ---
 
@@ -551,9 +642,14 @@ docker/
 │   ├── contract_test.cpp          # C++ Contract Test
 │   └── reference/                 # 原始参考源码副本
 ├── benchmarks/
-│   └── benchmark.yaml             # Benchmark 规范
+│   ├── benchmark.yaml             # Benchmark 规范
+│   ├── harness.py                 # Python 单进程重复 Benchmark Harness
+│   └── harness.cpp                # C++ 单文件 Benchmark Harness
 └── cache/
     ├── algocode.db                # SQLite Event Store 与 Projection
+    ├── bootstrap/                 # 初始参考构建产物
+    ├── build/                     # Baseline 与 Benchmark Harness 可执行文件
+    ├── contract-tests/            # Candidate / Reference Contract Test 可执行文件
     ├── artifacts/                 # Patch、输出、报告等产物
     ├── model-logs/                # 每次模型调用 Markdown 日志
     ├── optimization-records/      # Retry 所需优化记录
@@ -594,3 +690,5 @@ Decision / Report / Apply / Rollback
 - `.algocode/` 是运行时目录，不应提交到用户项目 Git 仓库。
 - 修改阶段机、Tool Loop、Storage 或 Gate 时，应同时更新对应单元测试和集成测试。
 - 修改 VS Code 扩展后，需要重新执行 TypeScript 编译并更新包内 VSIX。
+- 修改 `website/` 后，需要重新执行 Vite 构建并检查部署工作流。
+- `site/`、`website/dist/`、`dist/`、`node_modules/`、`.pytest_cache/` 和 `__pycache__/` 属于构建或缓存目录，不作为源码维护。
